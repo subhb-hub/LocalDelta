@@ -41,6 +41,8 @@ flowchart TD
 
 ## Quick start (Python 3.10+, no third-party runtime dependencies)
 
+Commands below use `python` for consistency across platforms. On systems where Python 3 is exposed only as `python3` (common on Linux/macOS), substitute `python3`. Check with `python --version` or `python3 --version` before proceeding. The Windows-only `py` launcher is optional, not required.
+
 ```bash
 # Clone once the repository is published, or unzip the source release.
 python localdelta.py --help
