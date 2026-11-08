@@ -25,25 +25,30 @@ python localdelta.py --help
 
 上述命令默认使用 `python`；如 Linux/macOS 只提供 `python3`，请替换为 `python3`。可用 `python --version` 检查版本。如果 `python -m tkinter` 不能打开窗口，说明该 Python 解释器没有安装或连接 Tk 图形组件；此时终端菜单仍可用。
 
-## 30 秒体验：一键创建安全演示
+## 新建自己的本地数据库（无需演示数据）
 
-**GUI：** Windows 可直接双击仓库根目录的 `Start-LocalDelta.cmd`（已有 Python 环境）；macOS/Linux 可运行 `sh Start-LocalDelta.sh`。或者运行 `python localdelta.py gui` → 点击 **「试用演示」** → 点击 **「预演 / 校验更新」** → 阅读完整字段差异 → 点击 **「人工确认并导入」**，输入 `APPLY`。完成后可切到「更新历史」核查。模拟数据位于用户主目录的 `.localdelta/demos/`，不会修改真实资产库。
+**GUI：** Windows 可直接双击仓库根目录 `Start-LocalDelta.cmd`；macOS/Linux 可执行 `sh Start-LocalDelta.sh`，或直接运行 `python localdelta.py gui`。打开后点击 **「新建数据库…」**，选择保存位置及文件名（例如 `private/portfolio.sqlite3`）。系统将自动创建空白三表投资组合库、初始化 PDP 元数据并切换到该数据库，初始资产、交易与估值数都是 0。**如果同名文件已存在，创建会失败，绝不覆盖。**
 
 **终端：**
 
 ```bash
-# 生成一套新的虚构数据库 + 与其匹配的更新包
-python localdelta.py demo
+# 创建并初始化新的空白投资组合数据库
+python localdelta.py create --db private/portfolio.sqlite3
 
-# 将上一步输出的两个路径填入下面；先预演再人工确认
-python localdelta.py update --db "演示数据库路径" --package "演示更新包路径"
+# 查看初始状态
+python localdelta.py status --db private/portfolio.sqlite3
+
+# 交互式终端也支持输入 NEW 新建数据库
+python localdelta.py menu
 ```
 
-`update` 会显示每个变更的字段详情，然后要求在终端输入 `APPLY`；非交互环境默认拒绝写入，若确实需要脚本自动执行，可显式指定 `--yes`。同一包导入两次返回 `already_applied`，不会重复记账。
+**正式界面默认不出现任何演示按钮。** 只有开发测试时显式运行 `python localdelta.py gui --show-demo`，才会显示「试用演示」。独立终端测试命令 `python localdelta.py demo` 仍然可用，并始终使用虚构资料。
+
+新建数据库后，可以导入符合 PDP/1.0 的原生更新包。当前云端匿名草稿只支持对**已有资产**新增交易或估值，尚不能通过匿名草稿创建第一项资产；首批资产需要由本地 AI 或受信任程序生成原生 PDP 包后导入。
 
 ## 正式导入自己的数据库
 
-1. 用 GUI 的「选择…」打开**本地** `portfolio.sqlite3`；如果是未经 PDP 初始化的旧库，点「首次初始化」，程序会先备份。
+1. 用 GUI 的「打开…」选择已有的 `portfolio.sqlite3`，或「新建数据库…」创建空白库。如果是未经 PDP 初始化的旧库，点「首次初始化」，程序会先备份。
 2. 使用「选择更新包…」载入 `.pdp.zip` 或 `.pdp.json`；带外部证据文件的 JSON 包可指定证据目录。
 3. 点击「预演 / 校验更新」检查操作数、金额、前后值、来源和冲突情况。
 4. 点击「人工确认并导入」，输入 `APPLY`。应用前会重新检查**刚才审核的文件内容、数据库修订号和指纹**；然后依旧由 PDP 引擎原子写入。

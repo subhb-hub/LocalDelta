@@ -50,16 +50,27 @@ def menu(db: str = "") -> int:
     while True:
         try:
             if not db:
-                db = _ask_path('请选择本地 SQLite 数据库路径')
-                if not db:
+                selected = _ask_path('输入现有数据库路径，或输入 NEW 新建数据库（回车退出）')
+                if not selected:
                     return 0
+                if selected.strip().upper() == 'NEW':
+                    new_path = _ask_path('请输入新数据库文件路径（.sqlite3）')
+                    if new_path:
+                        try:
+                            workflow.create_database(new_path)
+                            db = str(Path(new_path).expanduser().resolve())
+                            print('已创建新的空白数据库：' + db)
+                        except (workflow.WorkflowError, OSError, ValueError) as exc:
+                            print('创建失败：' + str(exc), file=sys.stderr)
+                    continue
+                db = selected
             print('\n' + '=' * 46)
             print(f'当前数据库：{db}')
             print('1. 查看状态与历史   2. 预演并导入更新包')
             print('3. 导出匿名 AI 上下文   4. 绑定 AI 草稿')
-            print('5. 切换数据库   6. 初始化已有数据库')
+            print('5. 切换数据库   6. 初始化已有数据库   7. 新建空白数据库')
             print('0. 退出')
-            choice = input('请选择 [0-6]：').strip()
+            choice = input('请选择 [0-7]：').strip()
             if choice == '0':
                 return 0
             if choice == '1':
@@ -94,6 +105,12 @@ def menu(db: str = "") -> int:
                 if input('数据库初始化将先自动备份。输入 INIT 继续：').strip() == 'INIT':
                     info = workflow.initialize(db)
                     print('初始化完成，修订版本：' + str(info['revision']))
+            elif choice == '7':
+                new_path = _ask_path('请输入新数据库文件路径（.sqlite3）')
+                if new_path:
+                    workflow.create_database(new_path)
+                    db = str(Path(new_path).expanduser().resolve())
+                    print('已创建并打开新的空白数据库：' + db)
             else:
                 print('无效选择，请重新输入。')
         except (workflow.WorkflowError, OSError, ValueError) as exc:

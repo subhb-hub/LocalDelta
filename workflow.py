@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import hashlib
 import io
 import json
+import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +80,44 @@ def initialize(db: str | Path) -> dict[str, Any]:
     if rc != 0:
         raise WorkflowError((stderr.getvalue() or stdout.getvalue()).strip())
     return status(path)
+
+
+def create_database(db: str | Path) -> dict[str, Any]:
+    """Create and initialize a NEW, empty portfolio DB; never replace existing bytes.
+
+    Creation uses O_EXCL, so even a file appearing between the dialog and the
+    click cannot be overwritten. Schema creation/initialization is local only.
+    """
+    if not str(db).strip():
+        raise WorkflowError("请指定新数据库的保存路径")
+    path = _path(db)
+    if path.suffix.lower() not in (".sqlite3", ".sqlite", ".db"):
+        raise WorkflowError("数据库文件必须使用 .sqlite3、.sqlite 或 .db 扩展名")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # O_EXCL blocks overwrite even if the existing path is a symlink.
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError as exc:
+        raise WorkflowError(f"目标文件已存在，绝不覆盖：{path}") from exc
+    except OSError as exc:
+        raise WorkflowError(f"无法创建数据库：{exc}") from exc
+    os.close(fd)
+    try:
+        sql = (Path(__file__).resolve().parent / "legacy_schema.sql").read_text(encoding="utf-8")
+        with contextlib.closing(sqlite3.connect(path)) as conn:
+            conn.executescript(sql)
+            conn.commit()
+        return initialize(path)
+    except Exception as exc:
+        # Only remove the file that THIS operation exclusively created.
+        # In case of an interrupted initialization the user may retry safely.
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        if isinstance(exc, WorkflowError):
+            raise
+        raise WorkflowError(f"新建数据库未完成：{exc}") from exc
 
 
 def preview(db: str | Path, package: str | Path, evidence_dir: str | Path | None = None) -> Review:

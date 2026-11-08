@@ -1,3 +1,10 @@
+## v0.2.1 — Database creation and explicit demo mode
+
+- Add **New database** to the Tkinter GUI and `python localdelta.py create --db ...` to the CLI.
+- Initialize an empty three-table SQLite portfolio and PDP metadata in one guided workflow; refuse to overwrite existing files.
+- Hide synthetic demo controls in the regular GUI; reveal them only with `python localdelta.py gui --show-demo`.
+- Add terminal-menu `NEW` and automated regression tests covering schema integrity, no-overwrite and first-asset native patch.
+
 # Changelog
 
 ## v0.2.0 — 2026-11-09

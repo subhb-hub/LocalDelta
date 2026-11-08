@@ -49,9 +49,10 @@ def _last_db() -> str:
 
 
 class LocalDeltaApp(ttk.Frame):
-    def __init__(self, root: tk.Tk, database: str = "") -> None:
+    def __init__(self, root: tk.Tk, database: str = "", show_demo: bool = False) -> None:
         super().__init__(root, padding=14)
         self.root = root
+        self.show_demo = show_demo
         self.root.title(APP_TITLE)
         self.root.minsize(780, 580)
         self.root.geometry("940x740")
@@ -77,10 +78,12 @@ class LocalDeltaApp(ttk.Frame):
         db_frame = ttk.LabelFrame(self, text="本地数据库", padding=9)
         db_frame.pack(fill="x")
         ttk.Entry(db_frame, textvariable=self.database).pack(side="left", fill="x", expand=True, padx=(0, 6))
-        ttk.Button(db_frame, text="选择…", command=self._choose_db).pack(side="left", padx=(0, 4))
+        ttk.Button(db_frame, text="新建数据库…", command=self._create_db).pack(side="left", padx=(0, 4))
+        ttk.Button(db_frame, text="打开…", command=self._choose_db).pack(side="left", padx=(0, 4))
         ttk.Button(db_frame, text="检查状态", command=self._check_db).pack(side="left", padx=(0, 4))
         ttk.Button(db_frame, text="首次初始化", command=self._init_db).pack(side="left", padx=(0, 4))
-        ttk.Button(db_frame, text="试用演示", command=self._make_demo).pack(side="left")
+        if self.show_demo:
+            ttk.Button(db_frame, text="试用演示", command=self._make_demo).pack(side="left")
 
         ttk.Label(self, textvariable=self.health, foreground="#24654f").pack(fill="x", pady=(7, 8))
         notebook = ttk.Notebook(self)
@@ -184,7 +187,7 @@ class LocalDeltaApp(ttk.Frame):
     def _build_help(self, parent: ttk.Frame) -> None:
         info = (
             "快速上手\n\n"
-            "1. 选择已有的 portfolio.sqlite3（首次使用未初始化的数据库时，点击「首次初始化」）。\n"
+            "1. 点击「新建数据库…」创建空白库；或「打开…」选择已有库（旧库首次使用请初始化）。\n"
             "2. 在「增量更新」中选择 update.pdp.json / update.pdp.zip。\n"
             "3. 点击「预演 / 校验更新」，阅读操作和字段变更。\n"
             "4. 点击「人工确认并导入」，输入 APPLY 才会更新。\n\n"
@@ -193,6 +196,7 @@ class LocalDeltaApp(ttk.Frame):
             "原生终端命令（脚本可调用）：\n"
             "  python localdelta.py menu\n"
             "  python localdelta.py gui\n"
+            "  python localdelta.py create --db private/portfolio.sqlite3\n"
             "  python localdelta.py update --db portfolio.sqlite3 --package update.pdp.zip\n"
             "  python localdelta.py plan --db portfolio.sqlite3 --package update.pdp.zip\n"
             "  python localdelta.py apply --db portfolio.sqlite3 --package update.pdp.zip\n\n"
@@ -216,6 +220,32 @@ class LocalDeltaApp(ttk.Frame):
         # Editing the database / package / evidence inputs invalidates previous approval.
         self._invalidate_review()
         self.state.set("输入已变化，请重新预演后再导入")
+
+    def _create_db(self) -> None:
+        path = filedialog.asksaveasfilename(
+            title="新建本地空白 SQLite 数据库（不会覆盖已有文件）",
+            defaultextension=".sqlite3", initialfile="portfolio.sqlite3",
+            filetypes=[("SQLite 数据库", "*.sqlite3 *.sqlite *.db"), ("所有文件", "*.*")],
+            parent=self.root,
+        )
+        if not path:
+            return
+        try:
+            info = workflow.create_database(path)
+            self.database.set(str(Path(path).resolve()))
+            self.package.set("")
+            self.evidence_dir.set("")
+            self._invalidate_review()
+            self._check_db()
+            self.notebook.select(0)
+            self.state.set("空白数据库创建成功；可开始导入增量包")
+            messagebox.showinfo("新建数据库成功", (
+                f"本地数据库：\n{Path(path).resolve()}\n\n"
+                f"版本：{info['revision']} · 资产 0 · 交易 0 · 快照 0\n"
+                "已自动创建数据表及 PDP 元数据；不会覆盖旧数据库。"
+            ), parent=self.root)
+        except (workflow.WorkflowError, OSError, ValueError) as exc:
+            messagebox.showerror("新建数据库失败", str(exc), parent=self.root)
 
     def _make_demo(self) -> None:
         try:
@@ -424,10 +454,11 @@ class LocalDeltaApp(ttk.Frame):
 def launch(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog='localdelta.py gui', description='LocalDelta 轻量本地桌面界面')
     ap.add_argument('--db', default='', help='可选：直接打开本地 SQLite 数据库')
+    ap.add_argument('--show-demo', action='store_true', help='仅用于测试：在 GUI 中显示隐藏的演示入口')
     opts = ap.parse_args(argv)
     try:
         root = tk.Tk()
-        LocalDeltaApp(root, database=opts.db)
+        LocalDeltaApp(root, database=opts.db, show_demo=opts.show_demo)
         root.mainloop()
         return 0
     except tk.TclError as exc:

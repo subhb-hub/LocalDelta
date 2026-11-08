@@ -5,7 +5,7 @@
 
 LocalDelta lets you keep your database on your own machine while asking a **local or cloud AI** to suggest structured changes. An offline importer validates the change package before committing anything. **The database is never uploaded or synchronized by this software.**
 
-> **Status: alpha (v0.2.0).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, foreign-currency ledger, and automated OCR are *roadmap*, not currently implemented.
+> **Status: alpha (v0.2.1).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, foreign-currency ledger, and automated OCR are *roadmap*, not currently implemented.
 
 ## What problem does it solve?
 
@@ -39,16 +39,17 @@ flowchart TD
   H --> J[Audit receipt and next revision]
 ```
 
-## Easy desktop and terminal workflows (v0.2.0)
+## Easy desktop and terminal workflows (v0.2.1)
 
 **GUI** — native Tkinter/ttk, optional, no web server or pip dependencies. On Windows, you can also double-click `Start-LocalDelta.cmd`; on Linux/macOS run `sh Start-LocalDelta.sh`:
 
 ```bash
-python localdelta.py gui                  # browse a database and import patches
+python localdelta.py gui                  # create or open a database; no demo by default
 python localdelta.py gui --db portfolio.sqlite3
+python localdelta.py gui --show-demo      # developer-only demo controls
 ```
 
-Click **Try demo** to generate an isolated synthetic portfolio and a matching patch. Review the proposed operations, inspect all field changes, and type `APPLY` to confirm; the importer revalidates before applying. You can also export an opaque cloud context, bind a cloud draft locally, and review recent audited packages from the same window.
+For real work, click **New database** to create and initialize an empty portfolio database, or open an existing one. Select a PDP patch, review every field change, and type `APPLY` to confirm. The importer revalidates before applying. The synthetic **Try demo** button appears only with `python localdelta.py gui --show-demo`. You can also export an opaque cloud context, bind a cloud draft locally, and review recent audited packages from the same window.
 
 **Terminal** — interactive menu or a single guarded command:
 
@@ -63,6 +64,17 @@ python localdelta.py update --db portfolio.sqlite3 --package update.pdp.zip
 Both clients use `workflow.py` and the existing `pdp.py` validation engine. Tkinter is usually installed with Python but some Linux installations need a separate `python3-tk` OS package. The terminal remains usable without Tk. Shell examples use `python`, or substitute `python3` where necessary.
 
 See [user guide](docs/USER_GUIDE.md) and [Chinese introduction](README.zh-CN.md).
+
+## Create a private database without demo data
+
+Launch `python localdelta.py gui` and choose **新建数据库… (New database)**, or create one directly from a terminal:
+
+```bash
+python localdelta.py create --db private/portfolio.sqlite3
+python localdelta.py status --db private/portfolio.sqlite3
+```
+
+The creator builds the supported three-table portfolio schema, initializes PDP metadata, and checks database integrity. The result is empty (`assets=0`, `transactions=0`, `snapshots=0`). **Existing files are never overwritten.** GUI demos are hidden by default; `python localdelta.py gui --show-demo` is an explicit developer/testing option. `python localdelta.py demo` remains a separate terminal-only demonstration. The cloud privacy bridge currently cannot create the first asset in an empty database; a native local PDP package is required.
 
 ## Quick start (Python 3.10+, no third-party runtime dependencies)
 

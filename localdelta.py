@@ -2,6 +2,7 @@
 """LocalDelta: local-first, AI-neutral incremental updates (portfolio adapter)."""
 import argparse
 import json
+from pathlib import Path
 import sys
 import sqlite3
 import zipfile
@@ -14,7 +15,9 @@ def main(argv=None):
     args=list(sys.argv[1:] if argv is None else argv)
     if args == ['--help'] or args == ['-h']:
         print('LocalDelta：本地优先、AI 协作的增量更新工具\n')
-        print('  python localdelta.py gui [--db 路径]    图形界面')
+        print('  python localdelta.py gui [--db 路径]    图形界面（默认不显示演示）')
+        print('  python localdelta.py gui --show-demo     仅在测试时显示演示按钮')
+        print('  python localdelta.py create --db 路径    创建新的空白数据库（不会覆盖）')
         print('  python localdelta.py menu [--db 路径]   交互式终端菜单')
         print('  python localdelta.py demo               创建独立的虚构演示数据库和更新包')
         print('  python localdelta.py update --db 路径 --package 文件   预演 + 人工确认 + 应用')
@@ -39,6 +42,19 @@ def main(argv=None):
         p = argparse.ArgumentParser(description='LocalDelta interactive terminal menu')
         p.add_argument('--db', default='')
         return menu(p.parse_args(args[1:]).db)
+    if args[0] in ('create', 'new'):
+        from workflow import WorkflowError, create_database
+        p = argparse.ArgumentParser(prog='localdelta.py create', description='新建空白投资组合数据库并初始化 PDP')
+        p.add_argument('--db', required=True, help='新数据库保存路径（需以 .sqlite3/.sqlite/.db 结尾）')
+        a = p.parse_args(args[1:])
+        try:
+            info = create_database(a.db)
+            print(json.dumps({'status': 'created', 'database': str(Path(a.db).expanduser().resolve()),
+                              'revision': info['revision'], 'counts': info['counts']}, ensure_ascii=False, indent=2))
+            return 0
+        except (WorkflowError, OSError, ValueError) as exc:
+            print('创建失败：' + str(exc), file=sys.stderr)
+            return 2
     if args[0] == 'demo':
         from workflow import make_demo
         db, package = make_demo()
