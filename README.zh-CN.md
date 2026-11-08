@@ -16,33 +16,33 @@ LocalDelta 不限于投资组合。它想解决的是：当私有数据存于本
 
 ## 一次性准备
 
-要求 Python 3.10 或更新版本。工具仅依赖 Python 标准库。
+要求 Python 3.10 或更新版本。工具仅依赖 Python 标准库。下文统一使用跨平台常见的 `python` 命令；如果你的 Linux/macOS 环境只提供 `python3`，请将命令中的 `python` 替换为 `python3`。在 Windows 中如已配置 Python，也可直接使用 `python`，无须依赖 Windows 专有的 `py` 启动器。首先运行 `python --version`（或 `python3 --version`）确认版本。
 
 ```powershell
-py -3 localdelta.py init --db portfolio.sqlite3
-py -3 localdelta.py status --db portfolio.sqlite3
+python localdelta.py init --db portfolio.sqlite3
+python localdelta.py status --db portfolio.sqlite3
 ```
 
 ## 日常更新：云端 AI 方案
 
 ```powershell
 # 在本地导出隐私上下文
-py -3 localdelta.py cloud-context --db portfolio.sqlite3 --out cloud-context.json
+python localdelta.py cloud-context --db portfolio.sqlite3 --out cloud-context.json
 
 # 在本机查看代号与真实资产的对应关系；这个文件含隐私，不能上传云端
-py -3 localdelta.py alias-map --db portfolio.sqlite3 --out private-aliases.json
+python localdelta.py alias-map --db portfolio.sqlite3 --out private-aliases.json
 
 # 只分享 cloud-context.json 和你愿意透露的增量信息。
 # AI 返回 draft.json，不包含真实资产编号或账户身份。
 
 # 回到本地绑定，得到可执行的更新包
-py -3 localdelta.py bind-draft --db portfolio.sqlite3 --draft draft.json --out update.pdp.json
+python localdelta.py bind-draft --db portfolio.sqlite3 --draft draft.json --out update.pdp.json
 
 # 模拟检查
-py -3 localdelta.py plan --db portfolio.sqlite3 --package update.pdp.json
+python localdelta.py plan --db portfolio.sqlite3 --package update.pdp.json
 
 # 人工审核后，原子导入（自动备份）
-py -3 localdelta.py apply --db portfolio.sqlite3 --package update.pdp.json
+python localdelta.py apply --db portfolio.sqlite3 --package update.pdp.json
 ```
 
 **注意：** `context` 是保留兼容的旧命令，会输出实际资产名称等信息，不是匿名化导出。要分享给云端，请使用 `cloud-context`。
