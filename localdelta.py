@@ -90,4 +90,11 @@ def main(argv=None):
 
 
 if __name__=='__main__':
+    # Windows/CI output pipes may default to cp1252 and reject Chinese UI text.
+    # Use UTF-8 for our own CLI messages when the stream allows reconfiguration.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except (AttributeError, ValueError, OSError):
+            pass
     sys.exit(main())

@@ -24,7 +24,9 @@ class WorkflowTests(unittest.TestCase):
         self.package = self.directory / 'example_update.pdp.zip'
 
     def rows(self, table):
-        with sqlite3.connect(self.db) as c:
+        # sqlite3.Connection.__exit__ commits/rolls back but DOES NOT close.
+        # Windows holds open file handles, so use closing() before temp cleanup.
+        with contextlib.closing(sqlite3.connect(self.db)) as c:
             return c.execute('SELECT COUNT(*) FROM ' + table).fetchone()[0]
 
     def test_preview_does_not_write(self):
@@ -105,8 +107,11 @@ class WorkflowTests(unittest.TestCase):
         except ImportError:
             self.skipTest('Tkinter is not available in this Python build')
         self.assertTrue(callable(desktop_gui.launch))
-        with self.assertRaises(SystemExit) as cm:
-            desktop_gui.launch(['--help'])
+        # CI on Windows can have cp1252 stdout even for UTF-8 source text.
+        # Capture help in memory, independently of runner console encoding.
+        with contextlib.redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as cm:
+                desktop_gui.launch(['--help'])
         self.assertEqual(cm.exception.code, 0)
 
     def test_demo_is_isolated(self):
