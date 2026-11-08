@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "localdelta-portfolio"
+version = "0.1.0"
+description = "Local-first, AI-assisted incremental updates with an offline portfolio adapter"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["sqlite", "portfolio", "privacy", "local-first", "ai", "incremental-update"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Database",
+]
+
+[project.scripts]
+localdelta = "localdelta:main"
+
+[tool.setuptools]
+py-modules = ["pdp", "privacy_bridge", "localdelta"]

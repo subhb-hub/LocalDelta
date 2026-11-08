@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:localdelta:cloud-draft:1",
+  "title": "LocalDelta privacy-preserving AI draft v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "context_token", "operations"],
+  "properties": {
+    "format": {"const": "LocalDeltaDraft/1"},
+    "context_token": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "operations": {
+      "type": "array", "minItems": 1, "maxItems": 1000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["action", "table", "asset_token", "record", "source"],
+        "properties": {
+          "action": {"const": "create"},
+          "table": {"enum": ["transactions", "snapshots"]},
+          "asset_token": {"type": "string", "pattern": "^AST-[a-f0-9]{32}$"},
+          "record": {"type": "object", "minProperties": 1},
+          "source": {
+            "type": "object", "additionalProperties": false,
+            "required": ["kind", "reference", "certainty"],
+            "properties": {
+              "kind": {"enum": ["manual", "screenshot", "statement", "csv", "other"]},
+              "reference": {"type": "string", "minLength": 1, "maxLength": 512},
+              "certainty": {"const": "confirmed"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

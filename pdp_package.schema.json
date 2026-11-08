@@ -1,0 +1,1044 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/pdp/1.0/package.schema.json",
+  "title": "PDP v1.0 illustrative package schema",
+  "description": "Structural validation; canonical hash, cross-field logic, source evidence, foreign keys and CAS are enforced by pdp.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "package_id",
+    "database_id",
+    "base_revision",
+    "schema_fingerprint",
+    "base_data_fingerprint",
+    "created_at",
+    "operations",
+    "content_hash"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "PDP/1.0"
+    },
+    "package_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "database_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "base_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "schema_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "base_data_fingerprint": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "description": {
+      "type": "string"
+    },
+    "content_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^evidence/[^/]+$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "action",
+              "table",
+              "record",
+              "source_key",
+              "source"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "action": {
+                "const": "create"
+              },
+              "table": {
+                "const": "assets"
+              },
+              "record": {
+                "$ref": "#/$defs/assetsRecord"
+              },
+              "source_key": {
+                "type": "string",
+                "minLength": 6
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "reference",
+                  "certainty"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "manual",
+                      "screenshot",
+                      "statement",
+                      "csv",
+                      "other"
+                    ]
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "certainty": {
+                    "const": "confirmed"
+                  }
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "action",
+              "table",
+              "record",
+              "source_key",
+              "source"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "action": {
+                "const": "create"
+              },
+              "table": {
+                "const": "transactions"
+              },
+              "record": {
+                "$ref": "#/$defs/transactionsRecord"
+              },
+              "source_key": {
+                "type": "string",
+                "minLength": 6
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "reference",
+                  "certainty"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "manual",
+                      "screenshot",
+                      "statement",
+                      "csv",
+                      "other"
+                    ]
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "certainty": {
+                    "const": "confirmed"
+                  }
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "action",
+              "table",
+              "record",
+              "source_key",
+              "source"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "action": {
+                "const": "create"
+              },
+              "table": {
+                "const": "snapshots"
+              },
+              "record": {
+                "$ref": "#/$defs/snapshotsRecord"
+              },
+              "source_key": {
+                "type": "string",
+                "minLength": 6
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "reference",
+                  "certainty"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "manual",
+                      "screenshot",
+                      "statement",
+                      "csv",
+                      "other"
+                    ]
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "certainty": {
+                    "const": "confirmed"
+                  }
+                }
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "action",
+              "table",
+              "id",
+              "before",
+              "changes",
+              "reason",
+              "source"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "action": {
+                "const": "correct"
+              },
+              "table": {
+                "enum": [
+                  "assets",
+                  "transactions",
+                  "snapshots"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "before": {
+                "type": "object",
+                "minProperties": 1
+              },
+              "changes": {
+                "type": "object",
+                "minProperties": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "reference",
+                  "certainty"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "manual",
+                      "screenshot",
+                      "statement",
+                      "csv",
+                      "other"
+                    ]
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "certainty": {
+                    "const": "confirmed"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "action",
+              "table",
+              "id",
+              "before",
+              "reason",
+              "source"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "action": {
+                "const": "void"
+              },
+              "table": {
+                "enum": [
+                  "transactions",
+                  "snapshots"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "before": {
+                "type": "object",
+                "minProperties": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "reference",
+                  "certainty"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "manual",
+                      "screenshot",
+                      "statement",
+                      "csv",
+                      "other"
+                    ]
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "certainty": {
+                    "const": "confirmed"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "assetsRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "asset_id",
+        "asset_name",
+        "currency"
+      ],
+      "properties": {
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "account": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position_quantity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coupon_pct": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "face_value_per_unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maturity_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "next_coupon_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity_verified_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notion_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "transactionsRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "asset_id",
+        "currency",
+        "kind",
+        "transaction_id"
+      ],
+      "properties": {
+        "transaction_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "account": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "order_datetime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "confirmed_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nav_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total_paid_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "net_invested_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fee_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit_nav": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transaction_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clean_price": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accrued_interest_per_unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "full_price": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "buy_ytm_pct": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cash_inflow_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notion_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clean_amount_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accrued_interest_total_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "snapshotsRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "account",
+        "asset_id",
+        "currency",
+        "snapshot_id"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "account": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "screenshot_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "official_valuation_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "market_value_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit_price": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "holding_pnl_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cumulative_pnl_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "yesterday_pnl_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "interest_received_cny": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "needs_valuation_date_check": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notion_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

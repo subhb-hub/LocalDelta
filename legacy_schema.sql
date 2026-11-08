@@ -1,0 +1,6 @@
+-- Minimal legacy schema: identifiers & column layout only; no personal rows.
+CREATE TABLE assets (asset_id TEXT PRIMARY KEY, asset_name TEXT, account TEXT, asset_type TEXT, currency TEXT, status TEXT, position_quantity REAL, quantity_unit TEXT, coupon_pct REAL, face_value_per_unit REAL, maturity_date TEXT, next_coupon_date TEXT, quantity_verified_date TEXT, notes TEXT, notion_url TEXT);
+
+CREATE TABLE transactions (transaction_id TEXT PRIMARY KEY, asset_id TEXT REFERENCES assets(asset_id),asset_name TEXT,account TEXT,kind TEXT,order_datetime TEXT,confirmed_date TEXT,nav_date TEXT,total_paid_cny REAL,net_invested_cny REAL,fee_cny REAL,quantity REAL,unit_nav REAL,transaction_ref TEXT,clean_price REAL,accrued_interest_per_unit REAL,full_price REAL,buy_ytm_pct REAL,cash_inflow_cny REAL,currency TEXT,source_status TEXT,notes TEXT,notion_url TEXT,clean_amount_cny REAL,accrued_interest_total_cny REAL);
+
+CREATE TABLE snapshots (snapshot_id TEXT PRIMARY KEY,asset_id TEXT REFERENCES assets(asset_id),asset_name TEXT,account TEXT,currency TEXT,screenshot_date TEXT,official_valuation_date TEXT,market_value_cny REAL,quantity REAL,unit_price REAL,holding_pnl_cny REAL,cumulative_pnl_cny REAL,yesterday_pnl_cny REAL,interest_received_cny REAL,needs_valuation_date_check INTEGER,notes TEXT,notion_url TEXT);

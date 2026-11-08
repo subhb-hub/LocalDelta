@@ -1,0 +1,86 @@
+{
+  "protocol": "PDP/1.0",
+  "package_id": "d5571308-e317-44d4-a514-71d3ea1191f5",
+  "database_id": "0c3ccb59-2f98-47a9-aa9e-c9a9a7ee2e9c",
+  "base_revision": 0,
+  "schema_fingerprint": "6e0da3667dc10a2e36435e330bd888ad987cf02b98b1ecc8f657cdd3e0dd597d",
+  "base_data_fingerprint": "f03bc538908e9ca5addb022f80dde494472c79ac08849d9be9a907ffabed63e3",
+  "created_at": "2026-11-08T08:28:20+00:00",
+  "description": "纯模拟数据：展示资产、交易和快照如何一次原子写入",
+  "evidence": [
+    {
+      "path": "evidence/sample_statement.txt",
+      "sha256": "9a9a23031a66ad7ff33305b3e70ac7b7e7edbc4b3de91dde3873c4dea517e793"
+    }
+  ],
+  "operations": [
+    {
+      "op_id": "695824b1-0993-46d7-8257-6cb721497aad",
+      "action": "create",
+      "table": "assets",
+      "source_key": "demo:asset:sim-fund-001",
+      "source": {
+        "kind": "manual",
+        "reference": "evidence/sample_statement.txt",
+        "certainty": "confirmed"
+      },
+      "record": {
+        "asset_id": "4b8041bd-6ce9-4836-840a-b801b7eab93a",
+        "asset_name": "示例指数基金（虚构）",
+        "account": "演示账户",
+        "asset_type": "基金",
+        "currency": "CNY",
+        "status": "在持"
+      }
+    },
+    {
+      "op_id": "54122d38-0c4a-46d0-971d-1e2156a90774",
+      "action": "create",
+      "table": "transactions",
+      "source_key": "demo:order-0001",
+      "source": {
+        "kind": "manual",
+        "reference": "evidence/sample_statement.txt",
+        "certainty": "confirmed"
+      },
+      "record": {
+        "transaction_id": "e82870f9-dcd4-4fe0-bca3-aaf0ed54badb",
+        "asset_id": "4b8041bd-6ce9-4836-840a-b801b7eab93a",
+        "kind": "申购",
+        "account": "演示账户",
+        "currency": "CNY",
+        "order_datetime": "2026-11-08T10:30:00+08:00",
+        "total_paid_cny": "1000.00",
+        "fee_cny": "1.00",
+        "net_invested_cny": "999.00",
+        "quantity": "999.0000",
+        "unit_nav": "1.0000",
+        "transaction_ref": "DEMO-TX-0001",
+        "source_status": "截图已确认"
+      }
+    },
+    {
+      "op_id": "81cd554e-795b-448b-acd9-eeec1223e01a",
+      "action": "create",
+      "table": "snapshots",
+      "source_key": "demo:valuation-2026-11-08",
+      "source": {
+        "kind": "manual",
+        "reference": "evidence/sample_statement.txt",
+        "certainty": "confirmed"
+      },
+      "record": {
+        "snapshot_id": "51f52947-017b-43c5-ba2c-95a2941a4e08",
+        "asset_id": "4b8041bd-6ce9-4836-840a-b801b7eab93a",
+        "account": "演示账户",
+        "currency": "CNY",
+        "screenshot_date": "2026-11-08",
+        "market_value_cny": "1012.34",
+        "holding_pnl_cny": "12.34",
+        "needs_valuation_date_check": true,
+        "notes": "演示记录；官方估值日待定"
+      }
+    }
+  ],
+  "content_hash": "6a7bfbab9846a24a5cb472a8bc5f55d0c96a34fa0ca59d1e808da125da5d1e26"
+}
