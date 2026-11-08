@@ -5,7 +5,7 @@
 
 LocalDelta lets you keep your database on your own machine while asking a **local or cloud AI** to suggest structured changes. An offline importer validates the change package before committing anything. **The database is never uploaded or synchronized by this software.**
 
-> **Status: alpha (v0.1.0).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, foreign-currency ledger, and automated OCR are *roadmap*, not currently implemented.
+> **Status: alpha (v0.2.0).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, foreign-currency ledger, and automated OCR are *roadmap*, not currently implemented.
 
 ## What problem does it solve?
 
@@ -39,9 +39,32 @@ flowchart TD
   H --> J[Audit receipt and next revision]
 ```
 
-## Quick start (Python 3.10+, no third-party runtime dependencies)
+## Easy desktop and terminal workflows (v0.2.0)
 
-Commands below use `python` for consistency across platforms. On systems where Python 3 is exposed only as `python3` (common on Linux/macOS), substitute `python3`. Check with `python --version` or `python3 --version` before proceeding. The Windows-only `py` launcher is optional, not required.
+**GUI** — native Tkinter/ttk, optional, no web server or pip dependencies. On Windows, you can also double-click `Start-LocalDelta.cmd`; on Linux/macOS run `sh Start-LocalDelta.sh`:
+
+```bash
+python localdelta.py gui                  # browse a database and import patches
+python localdelta.py gui --db portfolio.sqlite3
+```
+
+Click **Try demo** to generate an isolated synthetic portfolio and a matching patch. Review the proposed operations, inspect all field changes, and type `APPLY` to confirm; the importer revalidates before applying. You can also export an opaque cloud context, bind a cloud draft locally, and review recent audited packages from the same window.
+
+**Terminal** — interactive menu or a single guarded command:
+
+```bash
+python localdelta.py menu                 # interactive: status, import, context, draft
+python localdelta.py demo                 # new isolated synthetic DB + matching patch
+python localdelta.py update --db portfolio.sqlite3 --package update.pdp.zip
+```
+
+`update` always previews and prompts for literal `APPLY`; it refuses to write when standard input is non-interactive, unless `--yes` is **explicitly** passed. The low-level `plan`, `apply`, `init`, `status`, `restore` commands remain available and unchanged. No implicit database uploads or automatic confirmation.
+
+Both clients use `workflow.py` and the existing `pdp.py` validation engine. Tkinter is usually installed with Python but some Linux installations need a separate `python3-tk` OS package. The terminal remains usable without Tk. Shell examples use `python`, or substitute `python3` where necessary.
+
+See [user guide](docs/USER_GUIDE.md) and [Chinese introduction](README.zh-CN.md).
+
+## Quick start (Python 3.10+, no third-party runtime dependencies)
 
 ```bash
 # Clone once the repository is published, or unzip the source release.
@@ -100,7 +123,10 @@ A local model can read your existing portfolio and documents under your own acce
 ## Repository structure
 
 ```text
-localdelta.py                 CLI: native PDP commands + cloud context / draft binder
+localdelta.py                 CLI: native PDP + menu/update/gui dispatch
+terminal_ui.py                Interactive terminal menu + guarded one-step update
+workflow.py                   Shared validation/review/commit orchestration
+desktop_gui.py                Native Tkinter desktop UI
 pdp.py                        Offline Portfolio Delta Protocol engine
 privacy_bridge.py             HMAC pseudonyms and local draft binding
 legacy_schema.sql             Synthetic-compatible portfolio adapter layout
@@ -121,6 +147,7 @@ The portfolio adapter reflects a legacy **CNY** (Chinese yuan) schema: monetary 
 
 ## Documentation
 
+- [Desktop and terminal user guide](docs/USER_GUIDE.md)
 - [Practical local/cloud AI collaboration prompts](docs/AI_WORKFLOW.md)
 - [Cloud vs local AI and privacy boundaries](docs/PRIVACY.md)
 - [PDP/1.0 portfolio patch specification](docs/PDP_SPEC.md)
@@ -134,9 +161,9 @@ This is an independent implementation, inspired by [RFC 6902 JSON Patch](https:/
 
 Licensed under [MIT](LICENSE).
 
-## Publishing the public repository
+## Updating / republishing source code
 
-After creating an **empty public** repository in GitHub (do NOT pre-create README/license/.gitignore), extract this source tree and run one of:
+Maintainers can use the optional guarded publisher to submit changes to their own GitHub fork or repository. Before pushing, review staged changes, ensure no personal files are tracked, and run all tests:
 
 ```powershell
 # Windows: requires Python + Git; prompts before public push.

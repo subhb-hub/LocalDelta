@@ -12,6 +12,45 @@ import privacy_bridge
 
 def main(argv=None):
     args=list(sys.argv[1:] if argv is None else argv)
+    if args == ['--help'] or args == ['-h']:
+        print('LocalDelta：本地优先、AI 协作的增量更新工具\n')
+        print('  python localdelta.py gui [--db 路径]    图形界面')
+        print('  python localdelta.py menu [--db 路径]   交互式终端菜单')
+        print('  python localdelta.py demo               创建独立的虚构演示数据库和更新包')
+        print('  python localdelta.py update --db 路径 --package 文件   预演 + 人工确认 + 应用')
+        print('  python localdelta.py status|init|plan|apply|context|inspect|restore ...')
+        print('  python localdelta.py cloud-context|alias-map|bind-draft ...')
+        return 0
+    if not args:
+        if sys.stdin.isatty():
+            from terminal_ui import menu
+            return menu()
+        # Non-interactive invocation should not block waiting for input.
+        return pdp.main(['--help'])
+    if args[0] in ('gui', 'desktop'):
+        try:
+            from desktop_gui import launch
+        except ImportError as exc:
+            print('此 Python 环境缺少 Tkinter：'+str(exc)+'。可使用终端菜单 python localdelta.py menu。',file=sys.stderr)
+            return 2
+        return launch(args[1:])
+    if args[0] in ('menu', 'interactive'):
+        from terminal_ui import menu
+        p = argparse.ArgumentParser(description='LocalDelta interactive terminal menu')
+        p.add_argument('--db', default='')
+        return menu(p.parse_args(args[1:]).db)
+    if args[0] == 'demo':
+        from workflow import make_demo
+        db, package = make_demo()
+        print('已创建独立的虚构投资演示数据：')
+        print('数据库：'+str(db))
+        print('更新包：'+str(package))
+        print('启动图形界面：python localdelta.py gui --db '+repr(str(db)))
+        print('或在终端操作：python localdelta.py update --db '+repr(str(db))+' --package '+repr(str(package)))
+        return 0
+    if args[0] == 'update':
+        from terminal_ui import cli_update
+        return cli_update(args[1:])
     if args and args[0]=='cloud-context':
         p=argparse.ArgumentParser(description='Export minimal cloud-safe opaque asset references')
         p.add_argument('--db',required=True)

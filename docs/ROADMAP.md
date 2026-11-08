@@ -10,12 +10,20 @@
 - Local binding of cloud drafts for new transactions and snapshots for existing assets.
 - Cross-platform tests and public-repository file guard.
 
-## v0.2 (next priorities, not yet shipped)
+## v0.2.0 (implemented: desktop and interactive terminal)
+
+- Lightweight native Tkinter/ttk desktop client, no web server, no pip runtime dependencies.
+- Interactive terminal menu and one-command guarded update with explicit confirmation.
+- Preview details for all operations; automatically invalidate review on input changes and recheck before apply.
+- One-click isolated synthetic demo; built-in cloud context/draft binding and recent audit history.
+- Expanded headless tests for workflow safety and manually verified Tk window behavior.
+
+## Later priorities (not yet shipped)
 
 1. **Private asset aliases without revealing names to cloud:** local alias registration and cloud-draft asset creation/correction, with explicit human resolution.
 2. **Evidence inbox:** local OCR/import of CSV and screenshots, content hashes and source extraction quality; no automatic promotion of uncertain claims.
 3. **Export/import structured receipts:** machine-verifiable audit reconciliation, CLI compare and selective rollback via compensating events.
-4. **Intuitive installation:** standalone executable builds, Windows installer, local desktop or web UI bound only to localhost.
+4. **Intuitive distribution:** standalone executable builds / Windows installer; a full data dashboard is not yet implemented.
 5. **External change workflow:** audited local migration or controlled reconciliation when users edit rows in Excel/SQLite externally.
 
 ## v0.3 (architectural migration)

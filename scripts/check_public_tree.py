@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED = {'.py','.md','.txt','.json','.sql','.toml','.yml','.yaml','.ps1','.sh'}
+ALLOWED = {'.py','.md','.txt','.json','.sql','.toml','.yml','.yaml','.ps1','.sh','.cmd'}
 ALLOWED_NAMES = {'.gitignore','.gitattributes','LICENSE'}
 PRIVATE_PARTS = {'.localdelta','pdp_backups','pdp_receipts','secrets','private','backups'}
 

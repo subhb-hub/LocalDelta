@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build a synthetic demonstration DB and two signed-by-hash test packages."""
 import hashlib
+import contextlib
+import io
 import json
 from pathlib import Path
 import sqlite3
@@ -13,14 +15,27 @@ sys.path.insert(0,str(ROOT))
 import pdp
 
 
-def main():
-    out=Path(__file__).resolve().parent
+def main(out=None, quiet=False):
+    if out is None:
+        out=Path(__file__).resolve().parent
+        replace_builtin_demo = True
+    else:
+        out=Path(out).resolve()
+        replace_builtin_demo = False
+    out.mkdir(parents=True, exist_ok=True)
     db=out/'demo.sqlite3'
-    for p in [db]:p.unlink(missing_ok=True)
+    if replace_builtin_demo:
+        db.unlink(missing_ok=True)
+    elif db.exists():
+        raise FileExistsError('拒绝覆盖已有演示数据库：'+str(db))
     c=sqlite3.connect(db)
     try:c.executescript((ROOT/'legacy_schema.sql').read_text(encoding='utf8'))
     finally:c.close()
-    code=pdp.main(['init','--db',str(db)])
+    if quiet:
+        with contextlib.redirect_stdout(io.StringIO()):
+            code=pdp.main(['init','--db',str(db)])
+    else:
+        code=pdp.main(['init','--db',str(db)])
     assert code==0
     c=pdp.connect(db)
     meta=pdp.get_meta(c);c.close()
@@ -58,6 +73,7 @@ def main():
         z.writestr('package.json',json.dumps(pkg,ensure_ascii=False,indent=2))
         z.writestr('evidence/sample_statement.txt',evidence_content)
     (out/'example_correction.pdp.json').unlink(missing_ok=True)
-    print('Created synthetic fixtures (no real investments).')
+    if not quiet:
+        print('Created synthetic fixtures (no real investments).')
 
 if __name__=='__main__':main()

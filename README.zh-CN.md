@@ -1,70 +1,85 @@
 # LocalDelta｜本地优先的 AI 增量更新系统
 
-**主旨：数据保留在本地，AI 只生成更新建议，本地程序负责验证与写入。**
+**你的数据始终由本机掌控；AI 负责建议修改，LocalDelta 负责校验、备份、审计和原子写入。**
 
-LocalDelta 不限于投资组合。它想解决的是：当私有数据存于本地 SQLite、而信息不断以截图、账单、CSV 或文字的方式流入时，如何让本地 AI 或云端 AI 以安全、可追溯、可重复执行的方式共同维护数据库。
+LocalDelta 允许本地 AI 或云端 AI 生成结构化的增量更新包，而不是反复传输完整数据库。**目前已实现的业务适配器是三表 SQLite 投资组合**，不是可以任意接入数据库的通用平台。
 
-目前 **已实现** 的适配器是投资组合的三张表：资产、交易、估值快照。**不是**一个已经支持任意数据库的通用平台。
+## 三种入口：选择你觉得方便的方式
 
-## 本地 AI 与云端 AI
+需要 **Python 3.10+**，核心运行与 Tkinter 桌面界面都不依赖第三方 pip 包。
 
-**本地 AI：** 你可选择把完整账单、私有数据库交给运行在自己电脑上的模型处理。模型输出 PDP 更新包；离线导入器仍然校验、预演、备份并事务写入。
+```bash
+# 从 GitHub 克隆一次
+git clone https://github.com/subhb-hub/LocalDelta.git
+cd LocalDelta
 
-**云端 AI：** 先运行 `cloud-context`。输出只包含通过本地 HMAC 密钥生成的资产代号、上下文代号，以及协议可支持的操作。没有资产名称、账户名称、当前金额、持仓数量和交易编号。你可以仅向云端模型提供想让它看到的新增信息；云端输出匿名资产代号对应的候选草稿，`bind-draft` 再在本地恢复资产关联、账户、币种并绑定数据库状态。
+# ① 原生图形窗口（推荐）
+python localdelta.py gui
 
-**不应夸大隐私能力：** 云端只是不必获取完整数据库；如果你给云端发原始交易截图，截图上的隐私数据还是会被它看到。为了让云端 AI 做某项计算，它仍需要你提供该项计算所必需的事实，或者让本地程序先完成该计算。
+# ② 终端交互菜单（不需要记忆复杂参数）
+python localdelta.py menu
 
-## 一次性准备
+# ③ 原生低级命令（保留用于自动化）
+python localdelta.py --help
+```
 
-要求 Python 3.10 或更新版本。工具仅依赖 Python 标准库。下文统一使用跨平台常见的 `python` 命令；如果你的 Linux/macOS 环境只提供 `python3`，请将命令中的 `python` 替换为 `python3`。在 Windows 中如已配置 Python，也可直接使用 `python`，无须依赖 Windows 专有的 `py` 启动器。首先运行 `python --version`（或 `python3 --version`）确认版本。
+上述命令默认使用 `python`；如 Linux/macOS 只提供 `python3`，请替换为 `python3`。可用 `python --version` 检查版本。如果 `python -m tkinter` 不能打开窗口，说明该 Python 解释器没有安装或连接 Tk 图形组件；此时终端菜单仍可用。
 
-```powershell
-python localdelta.py init --db portfolio.sqlite3
+## 30 秒体验：一键创建安全演示
+
+**GUI：** Windows 可直接双击仓库根目录的 `Start-LocalDelta.cmd`（已有 Python 环境）；macOS/Linux 可运行 `sh Start-LocalDelta.sh`。或者运行 `python localdelta.py gui` → 点击 **「试用演示」** → 点击 **「预演 / 校验更新」** → 阅读完整字段差异 → 点击 **「人工确认并导入」**，输入 `APPLY`。完成后可切到「更新历史」核查。模拟数据位于用户主目录的 `.localdelta/demos/`，不会修改真实资产库。
+
+**终端：**
+
+```bash
+# 生成一套新的虚构数据库 + 与其匹配的更新包
+python localdelta.py demo
+
+# 将上一步输出的两个路径填入下面；先预演再人工确认
+python localdelta.py update --db "演示数据库路径" --package "演示更新包路径"
+```
+
+`update` 会显示每个变更的字段详情，然后要求在终端输入 `APPLY`；非交互环境默认拒绝写入，若确实需要脚本自动执行，可显式指定 `--yes`。同一包导入两次返回 `already_applied`，不会重复记账。
+
+## 正式导入自己的数据库
+
+1. 用 GUI 的「选择…」打开**本地** `portfolio.sqlite3`；如果是未经 PDP 初始化的旧库，点「首次初始化」，程序会先备份。
+2. 使用「选择更新包…」载入 `.pdp.zip` 或 `.pdp.json`；带外部证据文件的 JSON 包可指定证据目录。
+3. 点击「预演 / 校验更新」检查操作数、金额、前后值、来源和冲突情况。
+4. 点击「人工确认并导入」，输入 `APPLY`。应用前会重新检查**刚才审核的文件内容、数据库修订号和指纹**；然后依旧由 PDP 引擎原子写入。
+5. 数据库旁会生成 `pdp_backups/` 自动备份和 `pdp_receipts/` 审计回执。切换到「更新历史」查看最新记录。
+
+若更喜欢终端菜单，`python localdelta.py menu --db "路径"` 可以完成同样的主要操作。保留独立命令：
+
+```bash
+python localdelta.py plan --db portfolio.sqlite3 --package update.pdp.zip
+python localdelta.py apply --db portfolio.sqlite3 --package update.pdp.zip
 python localdelta.py status --db portfolio.sqlite3
 ```
 
-## 日常更新：云端 AI 方案
+## 与云端 / 本地 AI 协作
 
-```powershell
-# 在本地导出隐私上下文
+**云端（尽量少披露）：** GUI 的「AI 协作」→「导出匿名上下文」，只将该上下文文件与自己选择披露的增量事实发送云端。云端 AI 依照 [`LocalDeltaDraft/1`](cloud_draft.schema.json) 返回 `draft.json`，你在 GUI 中选择「绑定 AI 草稿」，随后进行预演与人工确认。终端下对应：
+
+```bash
 python localdelta.py cloud-context --db portfolio.sqlite3 --out cloud-context.json
-
-# 在本机查看代号与真实资产的对应关系；这个文件含隐私，不能上传云端
-python localdelta.py alias-map --db portfolio.sqlite3 --out private-aliases.json
-
-# 只分享 cloud-context.json 和你愿意透露的增量信息。
-# AI 返回 draft.json，不包含真实资产编号或账户身份。
-
-# 回到本地绑定，得到可执行的更新包
 python localdelta.py bind-draft --db portfolio.sqlite3 --draft draft.json --out update.pdp.json
-
-# 模拟检查
-python localdelta.py plan --db portfolio.sqlite3 --package update.pdp.json
-
-# 人工审核后，原子导入（自动备份）
-python localdelta.py apply --db portfolio.sqlite3 --package update.pdp.json
+python localdelta.py update --db portfolio.sqlite3 --package update.pdp.json
 ```
 
-**注意：** `context` 是保留兼容的旧命令，会输出实际资产名称等信息，不是匿名化导出。要分享给云端，请使用 `cloud-context`。
+**隐私边界：** 匿名上下文默认不含资产名、账户、余额、持仓或完整数据库；本机可另生成含名称的私有别名对照文件，**绝对不要将其上传到云端**。如果你主动发送原始截图、金额或账单给云端模型，这些内容仍会被云端看到。匿名代号也可能被跨轮关联；这不是零知识加密。
 
-示范：`python examples/quickstart.py`。所有示例均使用虚构数据。
+**本地 AI：** 可以读取你授权的本地资料直接生成原生 PDP 包；LocalDelta **暂不内置 OCR、Ollama/LLM 调用或自动截图识别**。无论谁生成补丁，执行之前都必须进行本地验证和人工确认。
 
-## 可靠性
+**云端 Draft/1 当前只能为已有资产新增交易或估值快照；创建资产、更正与作废需使用原生 PDP 包。** 历史三表适配器的人民币金额字段仍有原始 `REAL` 精度限制，美元/港元财务流不能直接冒充人民币写入。
 
-- 增量包重复导入会被识别，不能重复记账。
-- 数据库版本、内容摘要和逐字段旧值检查，可防止旧补丁覆盖新数据。
-- 先预演，再备份，再在 SQLite 单一事务里执行全部更新。
-- 不允许由 AI 直接提供 SQL 执行，也不自动调用银行/券商。
-- 审计日志记录更改前后、来源和补丁编号。
-- 金额以十进制字符串传输；旧表中的 SQLite REAL 金额仍有限制，多币种精确核算是下一阶段任务。
+## 如何测试
 
-更多内容见 [AI 协作示例](docs/AI_WORKFLOW.md)、[隐私模型](docs/PRIVACY.md)、[技术规范](docs/PDP_SPEC.md)、[路线图](docs/ROADMAP.md)。
+```bash
+python -m unittest discover -s tests -v
+python examples/quickstart.py
+```
 
-## 发布到 GitHub
+更多说明： [桌面与终端操作手册](docs/USER_GUIDE.md) · [协议规范](docs/PDP_SPEC.md) · [隐私边界](docs/PRIVACY.md) · [AI 交互示例](docs/AI_WORKFLOW.md) · [产品路线图](docs/ROADMAP.md)。
 
-先在 GitHub 上创建空的 **Public** 仓库 `subhb-hub/LocalDelta`，不要预先勾选 README、License 或 .gitignore（本项目都已包含）。随后解压本工具包，在源码根目录执行：
-
-- Windows PowerShell：`./scripts/publish-to-github.ps1`
-- macOS/Linux：`bash scripts/publish-to-github.sh`
-
-脚本会检查待上传文件是否包含数据库、图片、密钥、交易包等私有资料，列出拟公开文件，并要求你输入 `PUBLISH` 才会真正上传。需要本机 GitHub 认证。
+**不要把真实数据库、`.localdelta/`、私有映射、交易包、截图或账单提交到公开 GitHub 仓库。** LocalDelta 没有为本地数据库和备份加密；请启用操作系统磁盘加密并保留离线备份。
