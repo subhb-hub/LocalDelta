@@ -5,7 +5,23 @@
 
 LocalDelta lets you keep your database on your own machine while asking a **local or cloud AI** to suggest structured changes. An offline importer validates the change package before committing anything. **The database is never uploaded or synchronized by this software.**
 
-> **Status: alpha (v0.2.1).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, foreign-currency ledger, and automated OCR are *roadmap*, not currently implemented.
+> **Status: alpha (v0.3.0).** The portable patch engine and privacy bridge are implemented for an existing three-table portfolio SQLite schema. The generalized database-adapter interface, full foreign-exchange cash ledger, and automated OCR are *roadmap*, not currently implemented.
+
+> **v0.3.0: Multi-currency sidecar shipped.** PDP/2.0 stores typed decimal values in their original currencies (CNY, USD, HKD, etc.) and records dated, sourced FX observations. It does *not* provide full double-entry trading accounts, actual FX cash-leg reconciliation, or tax-lot accounting. See [multi-currency architecture](docs/MULTICURRENCY.md).
+
+
+## Multi-currency quick start
+
+Existing SQLite portfolios need a one-time explicit upgrade with a backup:
+
+```bash
+python localdelta.py money-upgrade --db private/portfolio.sqlite3
+python localdelta.py money-report --db private/portfolio.sqlite3 --currency CNY --as-of 2026-11-09
+```
+
+The GUI has a **多币种** tab for upgrading legacy databases, preparing manually sourced exchange-rate patches, and computing dated portfolio reports. New databases created through the GUI enable multicurrency by default. For the CLI, use `create --db ... --multi-currency`. Never enter a made-up exchange rate as a factual bank rate. Foreign and CNY values are never summed without recorded conversion evidence. Reports flag missing snapshots or FX rates as **incomplete**.
+
+Cloud drafting now supports `LocalDeltaDraft/2` with `money` roles, and local binding creates PDP/2.0 packages. The older CNY-only Draft/1 and PDP/1.0 flows remain supported on upgraded databases. See [PDP/2.0](docs/MULTICURRENCY.md) and the [Draft/2 schema](cloud_draft_v2.schema.json).
 
 ## What problem does it solve?
 
@@ -70,7 +86,7 @@ See [user guide](docs/USER_GUIDE.md) and [Chinese introduction](README.zh-CN.md)
 Launch `python localdelta.py gui` and choose **新建数据库… (New database)**, or create one directly from a terminal:
 
 ```bash
-python localdelta.py create --db private/portfolio.sqlite3
+python localdelta.py create --db private/portfolio.sqlite3 --multi-currency
 python localdelta.py status --db private/portfolio.sqlite3
 ```
 
@@ -139,11 +155,13 @@ localdelta.py                 CLI: native PDP + menu/update/gui dispatch
 terminal_ui.py                Interactive terminal menu + guarded one-step update
 workflow.py                   Shared validation/review/commit orchestration
 desktop_gui.py                Native Tkinter desktop UI
-pdp.py                        Offline Portfolio Delta Protocol engine
+pdp.py                        Offline Portfolio Delta Protocol v1/v2 engine
+multicurrency.py              Additive migration, typed money, dated FX, reports
 privacy_bridge.py             HMAC pseudonyms and local draft binding
 legacy_schema.sql             Synthetic-compatible portfolio adapter layout
 pdp_package.schema.json      Native PDP package format schema
-cloud_draft.schema.json      Cloud AI draft schema
+cloud_draft.schema.json      Cloud AI Draft/1 schema
+cloud_draft_v2.schema.json   Typed multi-currency Draft/2 schema
 examples/                    Synthetic demonstration only; no real holdings
 scripts/check_public_tree.py  Public-repository secret/file guard
 scripts/publish-to-github.* Guarded publisher (after creating empty GitHub repo)
@@ -153,7 +171,7 @@ docs/                        Protocol, threat model, adapter constraints, roadma
 
 ## Important limitations
 
-The portfolio adapter reflects a legacy **CNY** (Chinese yuan) schema: monetary fields end in `_cny`. It deliberately rejects USD/HKD monetary updates rather than mislabeling them. Multi-currency cash flows and general-purpose adapters are future work. A hash alone does not authenticate an AI or financial institution. Your local SQLite file and before-write backups are **not encrypted by the tool**; rely on disk encryption and private folder permissions.
+The portfolio adapter still preserves legacy **CNY**-named `REAL` columns for backward compatibility, but PDP/2.0 writes new foreign monetary values exclusively to typed `ld_currency_amounts`. The controlled migration backfills legacy amounts and flags approximations from old SQLite floating-point storage. Full double-entry FX trading accounts and general-purpose adapters remain future work. A hash alone does not authenticate an AI or financial institution. Your local SQLite file and before-write backups are **not encrypted by the tool**; rely on disk encryption and private folder permissions.
 
 **Never commit real databases, backups, screenshots, statements, contexts or update packages to a public Git repository.** This project is intentionally shipped with synthetic examples and source code only.
 
@@ -163,6 +181,7 @@ The portfolio adapter reflects a legacy **CNY** (Chinese yuan) schema: monetary 
 - [Practical local/cloud AI collaboration prompts](docs/AI_WORKFLOW.md)
 - [Cloud vs local AI and privacy boundaries](docs/PRIVACY.md)
 - [PDP/1.0 portfolio patch specification](docs/PDP_SPEC.md)
+- [PDP/2.0 multicurrency extension](docs/MULTICURRENCY.md)
 - [Current portfolio adapter constraints](docs/PORTFOLIO_ADAPTER.md)
 - [Implementation roadmap](docs/ROADMAP.md)
 - [Security policy](SECURITY.md)

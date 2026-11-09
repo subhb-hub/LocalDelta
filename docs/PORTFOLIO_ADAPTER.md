@@ -1,3 +1,5 @@
+> **Multi-currency update (v0.3.0):** Legacy three-table fields remain unchanged for compatibility. The controlled migration adds `ld_currency_amounts` exact original-currency money and `ld_fx_rates` for dated FX reference data. Do not put USD/HKD cash values into the legacy `*_cny` columns. See [MULTICURRENCY.md](MULTICURRENCY.md).
+
 # Portfolio adapter v0.1 — supported scope
 
 The current adapter is intentionally explicit. `legacy_schema.sql` defines three tables:

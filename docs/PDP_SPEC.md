@@ -1,5 +1,7 @@
 # Portfolio Delta Protocol (PDP) · v1.0
 
+> **v2 extension available:** original-currency `Money` amounts, dated FX, additive migration and Draft/2 are now documented separately in [MULTICURRENCY.md](MULTICURRENCY.md). PDP/1.0 continues to be accepted for existing CNY operations; this document deliberately describes the original v1 contract.
+
 > 状态：针对既有三表投资组合 SQLite 结构实现并测试的**自定义协议 v1.0**。不是 IETF、SQLite 官方标准或金融清算协议。
 
 ## 1. 设计目标

@@ -82,7 +82,7 @@ def initialize(db: str | Path) -> dict[str, Any]:
     return status(path)
 
 
-def create_database(db: str | Path) -> dict[str, Any]:
+def create_database(db: str | Path, enable_multicurrency: bool = False) -> dict[str, Any]:
     """Create and initialize a NEW, empty portfolio DB; never replace existing bytes.
 
     Creation uses O_EXCL, so even a file appearing between the dialog and the
@@ -107,7 +107,12 @@ def create_database(db: str | Path) -> dict[str, Any]:
         with contextlib.closing(sqlite3.connect(path)) as conn:
             conn.executescript(sql)
             conn.commit()
-        return initialize(path)
+        info=initialize(path)
+        if enable_multicurrency:
+            import multicurrency
+            multicurrency.upgrade(path)
+            info=status(path)
+        return info
     except Exception as exc:
         # Only remove the file that THIS operation exclusively created.
         # In case of an interrupted initialization the user may retry safely.

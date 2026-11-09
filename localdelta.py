@@ -22,6 +22,9 @@ def main(argv=None):
         print('  python localdelta.py demo               创建独立的虚构演示数据库和更新包')
         print('  python localdelta.py update --db 路径 --package 文件   预演 + 人工确认 + 应用')
         print('  python localdelta.py status|init|plan|apply|context|inspect|restore ...')
+        print('  python localdelta.py money-upgrade --db 路径    备份并启用原币金额扩展')
+        print('  python localdelta.py money-report --db 路径 --currency CNY --as-of YYYY-MM-DD')
+        print('  python localdelta.py fx-draft --db 路径 --base USD --quote CNY --rate 7.20 --date YYYY-MM-DD --source 人工来源')
         print('  python localdelta.py cloud-context|alias-map|bind-draft ...')
         return 0
     if not args:
@@ -30,6 +33,31 @@ def main(argv=None):
             return menu()
         # Non-interactive invocation should not block waiting for input.
         return pdp.main(['--help'])
+    if args[0] in ('money-upgrade','money-report','fx-draft','money-currencies'):
+        import multicurrency as mc
+        action=args[0]
+        ap=argparse.ArgumentParser(prog='localdelta.py '+action)
+        if action!='money-currencies':ap.add_argument('--db',required=True)
+        if action=='money-report':
+            ap.add_argument('--currency',default='CNY',help='报表币种 ISO 4217')
+            ap.add_argument('--as-of',help='报表估值日期 YYYY-MM-DD')
+            ap.add_argument('--max-fx-age',type=int,default=0,help='允许使用的历史参考汇率最大天数，默认 0')
+        if action=='fx-draft':
+            ap.add_argument('--base',required=True,help='基准货币，如 USD')
+            ap.add_argument('--quote',required=True,help='计价货币，如 CNY')
+            ap.add_argument('--rate',required=True,help='1 BASE = RATE QUOTE')
+            ap.add_argument('--date',required=True,help='汇率生效日期 YYYY-MM-DD')
+            ap.add_argument('--source',required=True,help='参考汇率来源，不要使用虚构汇率')
+        o=ap.parse_args(args[1:])
+        try:
+            if action=='money-upgrade':result=mc.upgrade(o.db)
+            elif action=='money-report':result=mc.report(o.db,o.currency,o.as_of,o.max_fx_age)
+            elif action=='fx-draft':result={'draft_package':mc.draft_fx_package(o.db,o.base,o.quote,o.rate,o.date,o.source),
+                                            'note':'Only prepared, not applied. Use plan then apply.'}
+            else:result={'minor_units':mc.MINOR_UNITS}
+            print(json.dumps(result,ensure_ascii=False,indent=2));return 0
+        except (pdp.PDPError,OSError,ValueError,sqlite3.Error) as exc:
+            print('多币种操作被拒绝：'+str(exc),file=sys.stderr);return 2
     if args[0] in ('gui', 'desktop'):
         try:
             from desktop_gui import launch

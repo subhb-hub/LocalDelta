@@ -1,3 +1,19 @@
+## 新功能：多币种数据库（v0.3.0）
+
+GUI 中选择本地数据库 →「多币种」选项卡 →「启用旧库多币种（自动备份）」并输入 `UPGRADE`。新建 GUI 数据库默认已启用。升级后，`CNY`、`USD`、`HKD` 等交易可使用 PDP/2.0 `money` 字段存储原币金额；参考汇率可在同一页面录入，系统只生成需人工审核的更新包。按日期选择报表币种生成汇总；缺少外币快照或汇率时，总额明确标注为 **部分统计**。注意旧库迁移会使先前尚未导入的补丁失效。
+
+命令行对应：
+
+```bash
+python localdelta.py money-upgrade --db private/portfolio.sqlite3
+python localdelta.py money-report --db private/portfolio.sqlite3 --currency CNY --as-of 2026-11-09
+python localdelta.py create --db private/new.sqlite3 --multi-currency
+```
+
+[完整设计、示例及限制](MULTICURRENCY.md)。
+
+---
+
 # LocalDelta v0.2.1 — Desktop and terminal guide
 
 ## Requirements

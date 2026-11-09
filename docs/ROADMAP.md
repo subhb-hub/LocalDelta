@@ -18,6 +18,14 @@
 - One-click isolated synthetic demo; built-in cloud context/draft binding and recent audit history.
 - Expanded headless tests for workflow safety and manually verified Tk window behavior.
 
+## v0.3.0 (implemented: original-currency amounts and manual FX)
+
+- Additive, backup-first migration of existing three-table portfolio DB, with legacy monetary provenance and revised data/schema fingerprints.
+- PDP/2.0 typed `Money(amount, currency)` values; native CNY/HKD/USD transactions and snapshots; quote currency may differ from cash settlement currency.
+- Manual dated/reference exchange-rate observations; no implicit or future-dated FX conversions. Reports explicitly mark missing valuations/rates.
+- Cloud Draft/2 money values bound locally from pseudonymous assets, shared offline preview/approval and audit.
+- **Not included:** fully balanced multi-currency cash postings, tax-lot cost accounting, automatic FX fetching, valuation P&L attribution.
+
 ## Later priorities (not yet shipped)
 
 1. **Private asset aliases without revealing names to cloud:** local alias registration and cloud-draft asset creation/correction, with explicit human resolution.
@@ -26,13 +34,12 @@
 4. **Intuitive distribution:** standalone executable builds / Windows installer; a full data dashboard is not yet implemented.
 5. **External change workflow:** audited local migration or controlled reconciliation when users edit rows in Excel/SQLite externally.
 
-## v0.3 (architectural migration)
+## Further architectural development
 
-1. Precisely typed original-currency amounts (`currency` + decimal/integer minor unit).
-2. Accounts, instruments, tax lots, trades, fees, cash flows, valuations, FX rates, evidence and immutable audit entities.
-3. Adapter protocol and regression-suite to support other local data domains.
-4. Optional package signatures (Ed25519 or OS-keystore-backed credentials), multiple user identities and policy-controlled approval.
-5. Signed offline release artifacts and reproducible packaging.
+1. Full double-entry cash posting, actual FX-exchange trade legs, tax lots and realized/unrealized gain attribution.
+2. Precisely typed unit prices and security quantities; external adapter protocol for other local databases.
+3. Optional Ed25519 package signatures, multi-user permissions and policy-controlled approvals.
+4. Signed offline release artifacts and reproducible installers.
 
 ## Explicitly out of scope now
 

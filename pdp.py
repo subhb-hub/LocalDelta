@@ -212,6 +212,9 @@ def schema_fingerprint(c):
         if not BASE_REQUIRED[t].issubset(table_columns(c, t)):
             fail("基础表缺少必要字段: " + t)
         ddls.append(r[0])
+    # Include approved additive multi-currency schema, without changing old v1 fingerprints.
+    from multicurrency import extension_ddl
+    ddls.extend(extension_ddl(c))
     return hashlib.sha256(canonical(ddls)).hexdigest()
 
 
@@ -223,6 +226,13 @@ def data_fingerprint(c):
         "pdp_source_keys": "source_key", "pdp_voids": "table_name,entity_id",
         "pdp_exact_values": "table_name,entity_id,column_name",
     }
+    from multicurrency import enabled
+    if enabled(c):
+        order.update({
+            "ld_currency_amounts":"entity_table,entity_id,role",
+            "ld_fx_rates":"rate_id",
+            "ld_mc_migrations":"version",
+        })
     h = hashlib.sha256()
     for t, col in order.items():
         h.update(t.encode("ascii"))
@@ -352,7 +362,9 @@ def validate_pkg(pkg, evidence):
     allowed = {"protocol","package_id","database_id","base_revision","schema_fingerprint","base_data_fingerprint","created_at","description","operations","evidence","content_hash"}
     extra = set(pkg)-allowed
     if extra: fail("更新包未知字段: "+repr(sorted(extra)))
-    if pkg.get("protocol") != PROTOCOL: fail("协议版本不兼容")
+    from multicurrency import PROTOCOL as PDP_V2, validate_op as validate_v2_op
+    v2=pkg.get("protocol")==PDP_V2
+    if pkg.get("protocol") not in (PROTOCOL,PDP_V2): fail("协议版本不兼容")
     for k in ("package_id","database_id"):
         check_uuid(pkg.get(k),k)
     if not isinstance(pkg.get("base_revision"),int) or isinstance(pkg.get("base_revision"),bool) or pkg["base_revision"]<0:
@@ -375,12 +387,15 @@ def validate_pkg(pkg, evidence):
     seen=set()
     for i,o in enumerate(ops):
         if not isinstance(o,dict):fail(f"第 {i+1} 项操作必须为对象")
-        if set(o)-{"op_id","action","table","record","id","before","changes","source_key","source","reason"}:
+        allowed_ops={"op_id","action","table","record","id","before","changes","source_key","source","reason"}
+        if v2: allowed_ops|={"money","money_before","money_changes"}
+        if set(o)-allowed_ops:
             fail(f"第 {i+1} 项包含未知操作字段")
         check_uuid(o.get("op_id"),"op_id")
         if o["op_id"] in seen:fail("同一更新包有重复 op_id")
         seen.add(o["op_id"])
-        if o.get("table") not in TABLES:fail("不允许操作未知表: "+str(o.get("table")))
+        if o.get("table") not in (TABLES+("fx_rates",) if v2 else TABLES):
+            fail("不允许操作未知表: "+str(o.get("table")))
         if o.get("action") not in ("create","correct","void"):fail("不支持的操作")
         source=o.get("source")
         if not isinstance(source,dict) or set(source)!={"kind","reference","certainty"}:
@@ -390,26 +405,34 @@ def validate_pkg(pkg, evidence):
         check_str(source.get("reference"),"source.reference",True,512)
         if source.get("certainty")!="confirmed":fail("存在未确认数据：请先人工复核，不允许导入")
         if o["action"] == "create":
-            if "id" in o or "before" in o or "changes" in o:
-                fail("create 操作不可包含 id / before / changes")
+            if "id" in o or "before" in o or "changes" in o or "money_before" in o or "money_changes" in o:
+                fail("create 操作不可包含 id / before / changes / money_before / money_changes")
             if not isinstance(o.get("record"),dict):fail("create 需要 record")
             check_str(o.get("source_key"),"source_key",True,255)
             if len(o["source_key"].strip())<6:fail("source_key 太短，无法可靠去重")
         else:
             if "record" in o or "source_key" in o:fail("修正/作废不可包含 record/source_key")
             check_uuid(o.get("id"),"目标记录 ID")
-            if not isinstance(o.get("before"),dict) or not o["before"]:
-                fail("修正/作废必须提供 before 前置条件")
+            if not isinstance(o.get("before"),dict):
+                fail("修正/作废必须提供 before 前置条件对象")
             if o["action"]=="correct":
-                if not isinstance(o.get("changes"),dict) or not o["changes"]:
-                    fail("修正操作必须提供 changes")
+                if not isinstance(o.get("changes"),dict):
+                    fail("修正操作必须提供 changes 对象")
+                has_money=v2 and bool(o.get('money_changes'))
+                if not o["changes"] and not has_money:
+                    fail("correct 需要实际字段修改")
+                if not o['before'] and not has_money:
+                    fail("correct 缺少旧值前置条件")
                 if set(o["before"])!=set(o["changes"]):
                     fail("correct 的 before 必须逐字段覆盖 changes")
+            elif not o['before']:
+                fail('void 必须提供 before 非空前置条件')
             elif "changes" in o:
                 fail("void 不允许 changes")
             check_str(o.get("reason"),"reason",True,512)
             if o["action"]=="void" and o["table"]=="assets":
-                fail("v1 不支持直接作废资产档案（避免关联孤儿）")
+                fail("不支持直接作废资产档案（避免关联孤儿）")
+        if v2: validate_v2_op(o)
     ev=pkg.get("evidence",[])
     if not isinstance(ev,list):fail("evidence 必须为数组")
     ev_names=set()
@@ -553,8 +576,17 @@ def record_exact(c,table,pk,changes):
                 c.execute("INSERT INTO pdp_exact_values(table_name,entity_id,column_name,decimal_value) VALUES(?,?,?,?) ON CONFLICT(table_name,entity_id,column_name) DO UPDATE SET decimal_value=excluded.decimal_value",(table,pk,k,v))
 
 
-def execute_op(c,o,pkg_id):
-    table=o["table"];action=o["action"];col=PK[table];ts=now()
+def execute_op(c,o,pkg_id,protocol=PROTOCOL):
+    from multicurrency import (PROTOCOL as PDP_V2, apply_fx, prepare_create,
+                               after_core_op, enabled)
+    table=o["table"];action=o["action"]
+    if table=='fx_rates':
+        if protocol != PDP_V2: fail('汇率记录只能使用 PDP/2.0')
+        return apply_fx(c,o,pkg_id)
+    # Make CNY compatibility columns while keeping all original-currency amounts.
+    original_op=o
+    if protocol==PDP_V2 and action=='create':o=prepare_create(o)
+    col=PK[table];ts=now()
     if action=="create":
         input_rec=o["record"]
         validate_columns(c,table,input_rec)
@@ -572,12 +604,15 @@ def execute_op(c,o,pkg_id):
                 check_str(rec.get(k),k,True,255)
         if table=="transactions":
             check_str(rec.get("kind"),"kind",True,30)
-            if rec.get("total_paid_cny") is None and rec.get("cash_inflow_cny") is None:
+            if rec.get("total_paid_cny") is None and rec.get("cash_inflow_cny") is None and not (
+                    protocol==PDP_V2 and original_op.get('money') and
+                    any(k in original_op['money'] for k in ('cash_paid','cash_inflow'))):
                 fail("交易至少应包含支付金额或现金流入金额")
             if not rec.get("order_datetime"):
                 fail("交易必须包含 order_datetime")
         if table=="snapshots":
-            if rec.get("market_value_cny") is None and rec.get("quantity") is None:
+            if rec.get("market_value_cny") is None and rec.get("quantity") is None and not (
+                    protocol==PDP_V2 and 'market_value' in original_op.get('money',{})):
                 fail("估值快照至少应包含市值或数量")
         validate_business_rules(table,rec)
         duplicate=find_dupe(c,table,rec)
@@ -590,11 +625,11 @@ def execute_op(c,o,pkg_id):
         before=None;after=get_row(c,table,pk)
     else:
         pk=o["id"];before=live_row(c,table,pk)
-        validate_columns(c,table,o["before"])
+        if o['before']:validate_columns(c,table,o["before"])
         all_equal(before,o["before"],table)
         if action=="correct":
             ch=o["changes"]
-            validate_columns(c,table,ch)
+            if ch:validate_columns(c,table,ch)
             if set(ch)&BLOCKED_EDITS[table]:
                 fail("不允许修改稳定 ID、资产身份或冗余关联字段。请走人工迁移流程。")
             rec={k:field_value(v,k,table) for k,v in ch.items()}
@@ -606,17 +641,21 @@ def execute_op(c,o,pkg_id):
             full_projected.update(rec)
             validate_business_rules(table,full_projected)
             keys=list(rec)
-            c.execute(f'UPDATE "{table}" SET '+','.join('"'+k+'"=?' for k in keys)+f' WHERE "{col}"=?',[rec[k] for k in keys]+[pk])
-            record_exact(c,table,pk,ch)
+            if keys:
+                c.execute(f'UPDATE "{table}" SET '+','.join('"'+k+'"=?' for k in keys)+f' WHERE "{col}"=?',[rec[k] for k in keys]+[pk])
+                record_exact(c,table,pk,ch)
             after=get_row(c,table,pk)
         else:
             c.execute("INSERT INTO pdp_voids VALUES (?,?,?,?)",(table,pk,pkg_id,o["reason"]))
             after={"voided":True,"record":before}
     c.execute("INSERT INTO pdp_operations(op_id,package_id,action,table_name,entity_id,old_json,new_json,reason,source_json,applied_at) VALUES(?,?,?,?,?,?,?,?,?,?)",(o["op_id"],pkg_id,action,table,pk,json.dumps(before,ensure_ascii=False,sort_keys=True) if before is not None else None,json.dumps(after,ensure_ascii=False,sort_keys=True),o.get("reason"),json.dumps(o["source"],ensure_ascii=False,sort_keys=True),ts))
+    if enabled(c):after_core_op(c,original_op,{'id':pk})
     return {"action":action,"table":table,"id":pk,"title":(after or {}).get("asset_name") or (before or {}).get("asset_name")}
 
 
 def process(c,pkg,commit=False):
+    from multicurrency import PROTOCOL as PDP_V2, require_enabled
+    if pkg['protocol']==PDP_V2:require_enabled(c)
     m=get_meta(c)
     if schema_fingerprint(c)!=m["schema_digest"]:
         fail("目标数据库基础表结构变化，禁止无迁移导入")
@@ -641,7 +680,7 @@ def process(c,pkg,commit=False):
     c.execute("INSERT INTO pdp_packages(package_id,content_hash,previous_revision,applied_revision,applied_at,summary) VALUES(?,?,?,?,?,?)",(pkg["package_id"],pkg["content_hash"],m["revision"],m["revision"]+1,now(),pkg.get("description","")))
     changed=[]
     for o in pkg["operations"]:
-        changed.append(execute_op(c,o,pkg["package_id"]))
+        changed.append(execute_op(c,o,pkg["package_id"],pkg['protocol']))
     new_data_digest = data_fingerprint(c)
     c.execute("UPDATE pdp_meta SET revision=?, data_digest=? WHERE singleton=1",(m["revision"]+1,new_data_digest))
     check_db(c)
@@ -718,7 +757,8 @@ def command_status(args):
         check_db(c)
         if data_fingerprint(c) != m["data_digest"]:
             fail("数据库在 PDP 之外被修改，数据指纹不匹配")
-        res={"status":"healthy","database_id":m["db_id"],"revision":m["revision"],"data_fingerprint":m["data_digest"],"counts":{t:c.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in TABLES},"active_counts":{"transactions":c.execute("SELECT COUNT(*) FROM pdp_active_transactions").fetchone()[0],"snapshots":c.execute("SELECT COUNT(*) FROM pdp_active_snapshots").fetchone()[0]},"recent_packages":[dict(r) for r in c.execute("SELECT * FROM pdp_packages ORDER BY applied_revision DESC LIMIT 10")]}
+        from multicurrency import enabled
+        res={"status":"healthy","database_id":m["db_id"],"revision":m["revision"],"data_fingerprint":m["data_digest"],"multicurrency_enabled":enabled(c),"counts":{t:c.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in TABLES},"active_counts":{"transactions":c.execute("SELECT COUNT(*) FROM pdp_active_transactions").fetchone()[0],"snapshots":c.execute("SELECT COUNT(*) FROM pdp_active_snapshots").fetchone()[0]},"recent_packages":[dict(r) for r in c.execute("SELECT * FROM pdp_packages ORDER BY applied_revision DESC LIMIT 10")]}
         print(json.dumps(res,ensure_ascii=False,indent=2))
     finally:c.close()
 

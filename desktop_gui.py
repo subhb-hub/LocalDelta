@@ -5,6 +5,7 @@ PDP, including optimistic concurrency, backups, audit, and idempotency.
 """
 from __future__ import annotations
 import argparse
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -91,13 +92,16 @@ class LocalDeltaApp(ttk.Frame):
         update_tab = ttk.Frame(notebook, padding=10)
         ai_tab = ttk.Frame(notebook, padding=10)
         history_tab = ttk.Frame(notebook, padding=10)
+        money_tab = ttk.Frame(notebook, padding=10)
         help_tab = ttk.Frame(notebook, padding=10)
         notebook.add(update_tab, text="  增量更新  ")
         notebook.add(ai_tab, text="  AI 协作  ")
+        notebook.add(money_tab, text="  多币种  ")
         notebook.add(history_tab, text="  更新历史  ")
         notebook.add(help_tab, text="  使用说明  ")
         self._build_update(update_tab)
         self._build_ai(ai_tab)
+        self._build_money(money_tab)
         self._build_history(history_tab)
         self._build_help(help_tab)
         self.notebook = notebook
@@ -172,6 +176,116 @@ class LocalDeltaApp(ttk.Frame):
                   text="本地 AI 可直接读取你授权的本地文件并生成原生 PDP 包。LocalDelta 当前不内置模型或 OCR；请由你的 Ollama / 其他工具负责提取数据。",
                   wraplength=760, justify="left").pack(fill="x", pady=8)
 
+    def _build_money(self, parent: ttk.Frame) -> None:
+        ttk.Label(parent, text="多币种资产与汇率", font=("Arial", 13, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(parent, text="原币金额独立存储；汇率不自动下载，也不改变历史交易金额。",
+                  wraplength=760, foreground="#596a75").pack(anchor="w", pady=(0, 9))
+        controls=ttk.Frame(parent);controls.pack(fill="x",pady=4)
+        ttk.Button(controls,text="启用旧库多币种（自动备份）",command=self._upgrade_money).pack(side="left",padx=(0,8))
+        ttk.Label(controls,text="仅记录可核查的参考汇率，不会自动兑换历史交易。",
+                  foreground="#596a75").pack(side="left")
+        fx=ttk.LabelFrame(parent,text="新增参考汇率（只生成草稿；需在增量更新页确认）",padding=8)
+        fx.pack(fill="x",pady=(10,7))
+        self.fx_base=tk.StringVar(value='USD')
+        self.fx_quote=tk.StringVar(value='CNY')
+        self.fx_rate=tk.StringVar()
+        self.fx_date=tk.StringVar(value=dt.date.today().isoformat())
+        self.fx_source=tk.StringVar()
+        for label,var,width in [('1 单位',self.fx_base,5),('换算为',self.fx_quote,5),
+                                ('汇率',self.fx_rate,13),('日期',self.fx_date,12)]:
+            ttk.Label(fx,text=label).pack(side='left',padx=(0,3))
+            ttk.Entry(fx,textvariable=var,width=width).pack(side='left',padx=(0,8))
+        ttk.Label(fx,text='来源').pack(side='left',padx=(0,3))
+        ttk.Entry(fx,textvariable=self.fx_source,width=19).pack(side='left',fill='x',expand=True,padx=(0,7))
+        ttk.Button(fx,text="生成草稿",command=self._make_fx_draft).pack(side='left')
+        report=ttk.LabelFrame(parent,text="资产市值汇总（本地计算）",padding=8)
+        report.pack(fill="x",pady=(12,7))
+        self.report_currency=tk.StringVar(value='CNY')
+        self.report_date=tk.StringVar(value=dt.date.today().isoformat())
+        self.report_age=tk.StringVar(value='0')
+        ttk.Label(report,text="报表币种").pack(side="left",padx=(0,4))
+        ttk.Combobox(report,textvariable=self.report_currency,values=('CNY','USD','HKD','EUR','JPY','GBP'),
+                     state='readonly',width=6).pack(side='left',padx=(0,10))
+        ttk.Label(report,text="截至日期").pack(side='left',padx=(0,4))
+        ttk.Entry(report,textvariable=self.report_date,width=13).pack(side='left',padx=(0,10))
+        ttk.Label(report,text="汇率允许滞后（天）").pack(side='left',padx=(0,4))
+        ttk.Combobox(report,textvariable=self.report_age,values=('0','1','3','7','30'),
+                     state='readonly',width=4).pack(side='left',padx=(0,10))
+        ttk.Button(report,text="生成汇总",command=self._money_report).pack(side='left')
+        box=ttk.Frame(parent);box.pack(fill='both',expand=True,pady=(9,0))
+        self.money_text=tk.Text(box,wrap='word',font=('Consolas',10),state='disabled',height=15)
+        scroll=ttk.Scrollbar(box,orient='vertical',command=self.money_text.yview)
+        self.money_text.configure(yscrollcommand=scroll.set)
+        self.money_text.pack(side='left',fill='both',expand=True)
+        scroll.pack(side='right',fill='y')
+        self._set_money_text('选择本地数据库后，可以启用多币种、录入参考汇率、生成资产市值汇总。\n'
+                             '缺少估值或汇率时，报告标记为不完整，不会擅自换算。')
+
+    def _set_money_text(self,content: str) -> None:
+        self.money_text.configure(state='normal')
+        self.money_text.delete('1.0','end')
+        self.money_text.insert('1.0',content)
+        self.money_text.configure(state='disabled')
+
+    def _upgrade_money(self) -> None:
+        db=self._require_db()
+        if not db:return
+        if simpledialog.askstring('启用多币种','将先备份数据库，并增加多币种金额和汇率表。\n'
+                                  '不会重写原始交易。输入 UPGRADE 继续：',parent=self.root)!='UPGRADE':return
+        try:
+            import multicurrency
+            result=multicurrency.upgrade(db)
+            self._invalidate_review()
+            self._check_db()
+            msg=f"状态：{result['status']}\n修订版本：{result['revision']}\n"
+            if result.get('backfilled') is not None:msg+=f"旧人民币金额映射：{result['backfilled']} 项\n"
+            if result.get('backup_path'):msg+='备份文件：'+result['backup_path']
+            self.state.set('多币种数据库已准备就绪')
+            messagebox.showinfo('多币种升级结果',msg,parent=self.root)
+        except Exception as exc:
+            messagebox.showerror('多币种升级失败',str(exc),parent=self.root)
+
+    def _make_fx_draft(self) -> None:
+        db=self._require_db()
+        if not db:return
+        try:
+            import multicurrency
+            package=multicurrency.draft_fx_package(
+                db,self.fx_base.get().strip().upper(),self.fx_quote.get().strip().upper(),
+                self.fx_rate.get().strip(),self.fx_date.get().strip(),self.fx_source.get().strip())
+            self.package.set(package)
+            self.evidence_dir.set('')
+            self._invalidate_review()
+            self.notebook.select(0)
+            self.state.set('参考汇率草稿已生成，请在「增量更新」页预演并确认导入')
+            messagebox.showinfo('汇率更新草稿',f'已生成尚未导入的增量包：\n{package}\n\n请先预演，再确认写入。',parent=self.root)
+        except Exception as exc:
+            messagebox.showerror('生成汇率草稿失败',str(exc),parent=self.root)
+
+    def _money_report(self) -> None:
+        db=self._require_db()
+        if not db:return
+        try:
+            import multicurrency
+            r=multicurrency.report(db, self.report_currency.get(), self.report_date.get().strip(),
+                                   int(self.report_age.get()))
+            summary=[f"估值截至：{r['as_of']}   报表货币：{r['base_currency']}",
+                     '汇总状态：'+('完整（已覆盖所有资产的估值及汇率）' if r['complete'] else '不完整，以下总额仅供部分统计'),
+                     '', '原币市值（不同货币不相加）：']
+            summary += [f'  {code}: {value}' for code,value in r['native_totals'].items()]
+            summary += ['',f"已能转换的部分市值：{r['converted_known_total']} {r['base_currency']}",
+                        f"缺少汇率：{len(r['missing_rates'])} 项；缺少估值：{len(r['unvalued_assets'])} 项",'']
+            summary += [f"未转换汇率：{item['needed_pair']} (asset ID {item['asset_id']})" for item in r['missing_rates']]
+            summary += [f"无估值：{item['asset_id']} / {item['currency']}" for item in r['unvalued_assets']]
+            summary += ['', '已计入项目：']
+            summary += [f"{x['asset_name']} | {x['native']['amount']} {x['native']['currency']} | "
+                        f"{x['converted'] or '未转换'} {r['base_currency']}" for x in r['holdings']]
+            self._set_money_text('\n'.join(summary))
+            self.state.set('多币种汇总已生成'+('（完整）' if r['complete'] else '（数据不完整）'))
+        except Exception as exc:
+            self._set_money_text(str(exc))
+            messagebox.showerror('多币种报表失败',str(exc),parent=self.root)
+
     def _build_history(self, parent: ttk.Frame) -> None:
         ttk.Button(parent, text="刷新本地审计历史", command=self._refresh_history).pack(anchor="w", pady=(0, 10))
         columns = ("version", "date", "description", "package_id")
@@ -231,7 +345,7 @@ class LocalDeltaApp(ttk.Frame):
         if not path:
             return
         try:
-            info = workflow.create_database(path)
+            info = workflow.create_database(path, enable_multicurrency=True)
             self.database.set(str(Path(path).resolve()))
             self.package.set("")
             self.evidence_dir.set("")
@@ -242,7 +356,7 @@ class LocalDeltaApp(ttk.Frame):
             messagebox.showinfo("新建数据库成功", (
                 f"本地数据库：\n{Path(path).resolve()}\n\n"
                 f"版本：{info['revision']} · 资产 0 · 交易 0 · 快照 0\n"
-                "已自动创建数据表及 PDP 元数据；不会覆盖旧数据库。"
+                "已自动启用多币种金额存储；不会覆盖旧数据库。"
             ), parent=self.root)
         except (workflow.WorkflowError, OSError, ValueError) as exc:
             messagebox.showerror("新建数据库失败", str(exc), parent=self.root)
@@ -300,7 +414,8 @@ class LocalDeltaApp(ttk.Frame):
         try:
             info = workflow.status(db)
             n = info['counts']
-            self.health.set(f"✓ 数据库正常 · 版本 {info['revision']} · 资产 {n['assets']} · 交易 {n['transactions']} · 快照 {n['snapshots']}")
+            mc_status=' · 多币种已启用' if info.get('multicurrency_enabled') else ' · 多币种未启用'
+            self.health.set(f"✓ 数据库正常 · 版本 {info['revision']} · 资产 {n['assets']} · 交易 {n['transactions']} · 快照 {n['snapshots']}"+mc_status)
             self.state.set("数据库验证成功")
             _remember(db)
         except (workflow.WorkflowError, OSError) as exc:

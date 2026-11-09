@@ -1,6 +1,7 @@
 """A small interactive terminal client; retains low-level PDP CLI for scripts."""
 from __future__ import annotations
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -69,8 +70,9 @@ def menu(db: str = "") -> int:
             print('1. 查看状态与历史   2. 预演并导入更新包')
             print('3. 导出匿名 AI 上下文   4. 绑定 AI 草稿')
             print('5. 切换数据库   6. 初始化已有数据库   7. 新建空白数据库')
+            print('8. 启用多币种（自动备份）   9. 多币种估值汇总')
             print('0. 退出')
-            choice = input('请选择 [0-7]：').strip()
+            choice = input('请选择 [0-9]：').strip()
             if choice == '0':
                 return 0
             if choice == '1':
@@ -111,6 +113,21 @@ def menu(db: str = "") -> int:
                     workflow.create_database(new_path)
                     db = str(Path(new_path).expanduser().resolve())
                     print('已创建并打开新的空白数据库：' + db)
+            elif choice == '8':
+                if input('启用多币种将备份旧库并增加资金/汇率记录表。输入 UPGRADE 继续：').strip()=='UPGRADE':
+                    import multicurrency
+                    info=multicurrency.upgrade(db)
+                    print('多币种状态：'+info['status']+'，版本 '+str(info['revision']))
+                    if info.get('backup_path'):print('升级前备份：'+info['backup_path'])
+            elif choice == '9':
+                import multicurrency
+                currency=input('汇总币种 [CNY]：').strip().upper() or 'CNY'
+                date=input('截至日期 YYYY-MM-DD [今天]：').strip() or None
+                r=multicurrency.report(db,currency,date)
+                print('各原币市值：'+json.dumps(r['native_totals'],ensure_ascii=False))
+                print(f"可转换的部分市值：{r['converted_known_total']} {r['base_currency']}")
+                if not r['complete']:
+                    print(f"⚠ 报表不完整：缺少汇率 {len(r['missing_rates'])} 项，缺少估值 {len(r['unvalued_assets'])} 项")
             else:
                 print('无效选择，请重新输入。')
         except (workflow.WorkflowError, OSError, ValueError) as exc:

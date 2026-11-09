@@ -1,3 +1,12 @@
+## v0.3.0 — 2026-11-09 — Typed original-currency amounts and manual FX valuation
+
+- Added opt-in, backup-first multicurrency migration (`money-upgrade`), plus GUI new-database enablement and multi-currency tab.
+- Introduced additive `ld_currency_amounts`, `ld_fx_rates`, `ld_mc_migrations` tables; preserved existing three base tables, asset/transaction/snapshot counts, and v1 patches.
+- Added guarded native `PDP/2.0` packages for original-currency transaction/snapshot amounts, money compare-and-swap corrections, and dated reference FX observations.
+- Implemented `LocalDeltaDraft/2` anonymous cloud proposals for multi-currency amounts and local-only identity binding.
+- Added explicit `money-report` projection with as-of FX, incomplete totals, source provenance and currency-specific rounding. No implicit FX conversion, no real-rate retrieval.
+- Added standard-library regression tests, original-data migration integration, and documentation of architectural references and unsupported full-accounting features.
+
 ## v0.2.1 — Database creation and explicit demo mode
 
 - Add **New database** to the Tkinter GUI and `python localdelta.py create --db ...` to the CLI.

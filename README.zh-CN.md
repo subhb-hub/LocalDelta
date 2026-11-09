@@ -2,6 +2,25 @@
 
 **你的数据始终由本机掌控；AI 负责建议修改，LocalDelta 负责校验、备份、审计和原子写入。**
 
+> **v0.3.0 多币种扩展已实现。** 原生保存 CNY、USD、HKD 等多币种金额；明确区分证券报价币种、实际付款币种、费用币种和报表币种。借鉴 Beancount / Portfolio Performance 的设计，保留历史原币金额，绝不隐式用当前汇率改写交易。尚不包含复式现金账本或税务成本批次。具体见 [多币种设计与使用手册](docs/MULTICURRENCY.md)。
+
+### 多币种日常操作（CLI / GUI）
+
+```bash
+# 先在 GUI 中打开本地数据库 → 「多币种」页 → 确认升级；或者执行
+python localdelta.py money-upgrade --db private/portfolio.sqlite3
+
+# 按指定日期和货币查看市值汇总。缺失外币估值/参考汇率会明确标记不完整。
+python localdelta.py money-report --db private/portfolio.sqlite3 --currency CNY --as-of 2026-11-09
+
+# 可选：命令行新建多币种数据库（GUI 新建数据库默认启用多币种）
+python localdelta.py create --db private/new-portfolio.sqlite3 --multi-currency
+```
+
+参考汇率可以在 GUI「多币种」页填写；只生成增量草稿，不会直接改写数据库。选择更新包、预演并输入 `APPLY` 后才会写入。**旧库升级有自动备份，并会递增数据库修订号；升级前生成的旧补丁需要重新生成。**
+
+云端匿名草稿新增 [`LocalDeltaDraft/2`](cloud_draft_v2.schema.json)，以 `money` 字段明确携带原币金额。原有 `LocalDeltaDraft/1`、PDP/1.0 人民币流程继续兼容。
+
 LocalDelta 允许本地 AI 或云端 AI 生成结构化的增量更新包，而不是反复传输完整数据库。**目前已实现的业务适配器是三表 SQLite 投资组合**，不是可以任意接入数据库的通用平台。
 
 ## 三种入口：选择你觉得方便的方式
@@ -27,13 +46,13 @@ python localdelta.py --help
 
 ## 新建自己的本地数据库（无需演示数据）
 
-**GUI：** Windows 可直接双击仓库根目录 `Start-LocalDelta.cmd`；macOS/Linux 可执行 `sh Start-LocalDelta.sh`，或直接运行 `python localdelta.py gui`。打开后点击 **「新建数据库…」**，选择保存位置及文件名（例如 `private/portfolio.sqlite3`）。系统将自动创建空白三表投资组合库、初始化 PDP 元数据并切换到该数据库，初始资产、交易与估值数都是 0。**如果同名文件已存在，创建会失败，绝不覆盖。**
+**GUI：** Windows 可直接双击仓库根目录 `Start-LocalDelta.cmd`；macOS/Linux 可执行 `sh Start-LocalDelta.sh`，或直接运行 `python localdelta.py gui`。打开后点击 **「新建数据库…」**，选择保存位置及文件名（例如 `private/portfolio.sqlite3`）。系统将自动创建空白三表投资组合库、初始化 PDP 元数据、启用多币种扩展并切换到该数据库，初始资产、交易与估值数都是 0。**如果同名文件已存在，创建会失败，绝不覆盖。**
 
 **终端：**
 
 ```bash
 # 创建并初始化新的空白投资组合数据库
-python localdelta.py create --db private/portfolio.sqlite3
+python localdelta.py create --db private/portfolio.sqlite3 --multi-currency
 
 # 查看初始状态
 python localdelta.py status --db private/portfolio.sqlite3
@@ -76,7 +95,7 @@ python localdelta.py update --db portfolio.sqlite3 --package update.pdp.json
 
 **本地 AI：** 可以读取你授权的本地资料直接生成原生 PDP 包；LocalDelta **暂不内置 OCR、Ollama/LLM 调用或自动截图识别**。无论谁生成补丁，执行之前都必须进行本地验证和人工确认。
 
-**云端 Draft/1 当前只能为已有资产新增交易或估值快照；创建资产、更正与作废需使用原生 PDP 包。** 历史三表适配器的人民币金额字段仍有原始 `REAL` 精度限制，美元/港元财务流不能直接冒充人民币写入。
+**云端 Draft/1 与 Draft/2 均只能为已有资产新增交易或估值快照；创建资产、更正与作废需使用原生 PDP 包。** 新的外币金额存于精确十进制扩展表，历史 CNY `REAL` 字段在迁移时会注明近似来源；外币金额绝不会伪装成人民币。完整复式现金流及成本批次仍属后续规划。
 
 ## 如何测试
 

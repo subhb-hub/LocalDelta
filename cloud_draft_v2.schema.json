@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:localdelta:cloud-draft:2",
+  "title": "LocalDelta anonymous multi-currency draft v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "context_token", "operations"],
+  "properties": {
+    "format": {"const": "LocalDeltaDraft/2"},
+    "context_token": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "operations": {
+      "type": "array", "minItems": 1, "maxItems": 1000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["action", "table", "asset_token", "record", "money", "source"],
+        "properties": {
+          "action": {"const": "create"},
+          "table": {"enum": ["transactions", "snapshots"]},
+          "asset_token": {"type": "string", "pattern": "^AST-[a-f0-9]{32}$"},
+          "record": {"type": "object", "minProperties": 1},
+          "money": {
+            "type": "object", "minProperties": 1,
+            "additionalProperties": {
+              "type": "object", "additionalProperties": false,
+              "required": ["amount", "currency"],
+              "properties": {
+                "amount": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"},
+                "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+              }
+            }
+          },
+          "source": {
+            "type": "object", "additionalProperties": false,
+            "required": ["kind", "reference", "certainty"],
+            "properties": {
+              "kind": {"enum": ["manual", "screenshot", "statement", "csv", "other"]},
+              "reference": {"type": "string", "minLength": 1, "maxLength": 512},
+              "certainty": {"const": "confirmed"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

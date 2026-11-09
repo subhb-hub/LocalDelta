@@ -13,6 +13,26 @@ python localdelta.py apply --db portfolio.sqlite3 --package candidate.pdp.json
 
 The tool does not bundle an AI runtime and does not currently perform extraction, OCR or agent orchestration.
 
+## Multi-currency anonymous cloud route (`LocalDeltaDraft/2`)
+
+On a `money-upgrade`-enabled local database, `cloud-context` advertises `supports_native_money`. A cloud AI can return a **Draft/2** proposal, without asset names or account identifiers, using the following additional `money` object:
+
+```json
+{
+  "format":"LocalDeltaDraft/2",
+  "context_token":"<opaque context token from local cloud-context.json>",
+  "operations":[{
+    "action":"create","table":"snapshots",
+    "asset_token":"<opaque AST-... token>",
+    "record":{"screenshot_date":"2026-11-09","needs_valuation_date_check":true},
+    "money":{"market_value":{"amount":"1750.00","currency":"USD"}},
+    "source":{"kind":"manual","reference":"synthetic test 001","certainty":"confirmed"}
+  }]
+}
+```
+
+All numbers above are **synthetic**, and the tokens are placeholders. A local `bind-draft` checks the original database revision, resolves the private asset reference, verifies the semantic monetary roles, and produces PDP/2.0. Never invent missing original currencies or reference FX; USD assets must not be relabeled as CNY. See [multi-currency spec](MULTICURRENCY.md). Draft/1 is still supported for legacy CNY-only records.
+
 ## Cloud AI route (no full database needed)
 
 1. Export `cloud-context.json` from the trusted local machine. It contains HMAC asset tokens but no account/asset names or balances.

@@ -20,6 +20,7 @@ import pdp
 
 CONTEXT_FORMAT = 'LocalDeltaCloudContext/1'
 DRAFT_FORMAT = 'LocalDeltaDraft/1'
+DRAFT_FORMAT_V2 = 'LocalDeltaDraft/2'
 TOKEN_PREFIX = 'AST-'
 
 
@@ -81,9 +82,11 @@ def get_cloud_context(conn, key, meta, detail='none'):
         if detail == 'category':
             a['category'] = r['asset_type']
         assets.append(a)
+    from multicurrency import enabled
     return {
         'format': CONTEXT_FORMAT,
         'context_token': context_nonce(key, meta),
+        'supports_native_money': enabled(conn),
         'assets': assets,
         'supported_changes': ['create transaction', 'create snapshot'],
         'privacy_notice': 'No asset names, account identifiers, positions, balances, or transaction refs. Context tokens are opaque. Any facts you send separately to a cloud AI can still be disclosed.',
@@ -142,8 +145,10 @@ def bind_draft(db, draft_file, out):
     draft = pdp.json_parse(draft_path.read_bytes())
     if not isinstance(draft,dict) or set(draft) != {'format','context_token','operations'}:
         pdp.fail('Cloud Draft 必须仅包含 format、context_token、operations')
-    if draft['format'] != DRAFT_FORMAT:
+    if draft['format'] not in (DRAFT_FORMAT,DRAFT_FORMAT_V2):
         pdp.fail('不支持的 Cloud Draft 格式')
+    v2=draft['format']==DRAFT_FORMAT_V2
+    from multicurrency import PROTOCOL as PDP_V2, require_enabled, check_native_money
     ops = draft['operations']
     if not isinstance(ops,list) or not 1<=len(ops)<=pdp.MAX_OPS:
         pdp.fail('Cloud Draft operations 数量无效')
@@ -151,6 +156,7 @@ def bind_draft(db, draft_file, out):
     c = pdp.connect(db)
     try:
         meta = check_source_db(c)
+        if v2:require_enabled(c)
         key = load_key(db)
         if not hmac.compare_digest(str(draft['context_token']),context_nonce(key, meta)):
             pdp.fail('隐私上下文已过期、不匹配或来自其他数据库；请重新导出 cloud-context')
@@ -161,8 +167,11 @@ def bind_draft(db, draft_file, out):
         out_ops=[]
         seen_sources=set()
         for index,d in enumerate(ops):
-            if not isinstance(d,dict) or set(d)!={'action','table','asset_token','record','source'}:
+            fields={'action','table','asset_token','record','source'}
+            if v2:fields.add('money')
+            if not isinstance(d,dict) or set(d)!=fields:
                 pdp.fail(f'第 {index+1} 条 Draft 操作字段不符')
+            if v2:check_native_money(d['table'],d['money'])
             if d['action']!='create' or d['table'] not in ('transactions','snapshots'):
                 pdp.fail('隐私桥目前只支持给现有资产创建交易或估值快照')
             asset=lookup.get(d['asset_token'])
@@ -185,19 +194,22 @@ def bind_draft(db, draft_file, out):
             data={'asset_id':asset['asset_id'], 'account':asset['account'], 'currency':asset['currency'], **record}
             pdp.validate_business_rules(d['table'], {k:pdp.field_value(v,k,d['table']) for k,v in data.items()})
             identity={'table':d['table'],'asset_id':asset['asset_id'],'record':record,'source':src}
+            if v2:identity['money']=d['money']
             source_key='localdelta:'+hashlib.sha256(pdp.canonical(identity)).hexdigest()
             if source_key in seen_sources:
                 pdp.fail('Cloud Draft 内存在重复来源/记录')
             seen_sources.add(source_key)
             record_id=str(uuid.uuid5(uuid.UUID(meta['db_id']),source_key))
             data[pdp.PK[d['table']]]=record_id
-            out_ops.append({
+            out_op={
                 'op_id':str(uuid.uuid5(uuid.UUID(meta['db_id']),'op:'+source_key)),
                 'action':'create','table':d['table'],'source_key':source_key,
                 'source':src,'record':data
-            })
+            }
+            if v2:out_op['money']=d['money']
+            out_ops.append(out_op)
         pkg={
-            'protocol':pdp.PROTOCOL,
+            'protocol':PDP_V2 if v2 else pdp.PROTOCOL,
             'package_id':str(uuid.uuid4()),
             'database_id':meta['db_id'],
             'base_revision':meta['revision'],

@@ -6,6 +6,10 @@
 2. **Optional AI domain:** a local model running under your chosen OS controls, or a remote model that sees only the subset you explicitly send.
 3. **Public source repository:** executable code, unit tests, schemas, synthetic examples and docs. No personal database material.
 
+## Multi-currency cloud drafts
+
+`LocalDeltaDraft/2` includes explicit original-currency amount values *only* if the user chooses to provide them. `cloud-context` does not send holdings, account names, balances or monetary amounts. The local bridge restores the asset identity, validates currency/amount roles, and binds PDP/2.0. Pseudonymous tokens remain correlatable; uploaded transaction amounts may still be sensitive even without the asset name.
+
 ## Cloud workflow
 
 `cloud-context` exports ONLY:
