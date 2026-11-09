@@ -219,6 +219,22 @@ class LedgerTests(unittest.TestCase):
         bad_time = event(good, occurred_at="2026-11-09T10:00:00")
         self.cli("plan", "--db", str(self.db), "--package", str(self.package([bad_time])), success=False)
 
+    def test_malformed_enum_types_are_rejected_without_uncaught_exceptions(self):
+        self.upgrade()
+        a, bad_account = account("bad type")
+        bad_account["record"]["account_type"] = ["bank"]
+        self.cli("plan", "--db", str(self.db), "--package",
+                 str(self.package([bad_account])), success=False)
+        x, y = self.account_pair()
+        bad_kind = event([posting(x, "-1.00"), posting(y, "1.00")])
+        bad_kind["record"]["kind"] = ["transfer"]
+        self.cli("plan", "--db", str(self.db), "--package",
+                 str(self.package([bad_kind])), success=False)
+        bad_role = event([posting(x, "-1.00"), posting(y, "1.00")])
+        bad_role["record"]["postings"][0]["role"] = ["principal"]
+        self.cli("plan", "--db", str(self.db), "--package",
+                 str(self.package([bad_role])), success=False)
+
     def test_duplicate_event_source_detected_and_rejected(self):
         self.upgrade()
         a, b = self.account_pair()
