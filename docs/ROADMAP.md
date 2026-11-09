@@ -26,6 +26,16 @@
 - Cloud Draft/2 money values bound locally from pseudonymous assets, shared offline preview/approval and audit.
 - **Not included:** fully balanced multi-currency cash postings, tax-lot cost accounting, automatic FX fetching, valuation P&L attribution.
 
+## v0.4+ (proposed: multi-account ledger + composable dashboard; NOT implemented)
+
+Design RFC: [Multi-account ledger, transfer timeline and dashboard](MULTI_ACCOUNT_DASHBOARD_RFC.md).
+
+- Normalize institution/account identity and ownership scope; retain evidence-backed bank/broker statement observations and separate economic events / exact-currency postings.
+- Add reviewed transfer matching, explicit executed FX and fees, split payments, unmatched-transaction reconciliation, and no-double-count portfolio totals.
+- Publish local, read-only, typed query APIs for account cash movements, reconciliations, performance coverage and account-to-account flow timelines.
+- Add a user-configurable block dashboard (timeline is an optional reusable block, not the sole UI).
+- Preserve PDP audit, backups, migration compatibility, privacy and explicit confirmation; avoid default network listeners.
+
 ## Later priorities (not yet shipped)
 
 1. **Private asset aliases without revealing names to cloud:** local alias registration and cloud-draft asset creation/correction, with explicit human resolution.
