@@ -26,6 +26,7 @@ def main(argv=None):
         print('  python localdelta.py ledger-upgrade --db 路径   备份并启用复式现金账本')
         print('  python localdelta.py ledger-accounts --db 路径 [--ownership owned]')
         print('  python localdelta.py ledger-entries --db 路径 --account 账户UUID')
+        print('  python localdelta.py ledger-timeline --db 路径 [--start ISO时间] [--end ISO时间]')
         print('  python localdelta.py money-report --db 路径 --currency CNY --as-of YYYY-MM-DD')
         print('  python localdelta.py fx-draft --db 路径 --base USD --quote CNY --rate 7.20 --date YYYY-MM-DD --source 人工来源')
         print('  python localdelta.py cloud-context|alias-map|bind-draft ...')
@@ -36,7 +37,7 @@ def main(argv=None):
             return menu()
         # Non-interactive invocation should not block waiting for input.
         return pdp.main(['--help'])
-    if args[0] in ('ledger-upgrade', 'ledger-accounts', 'ledger-entries'):
+    if args[0] in ('ledger-upgrade', 'ledger-accounts', 'ledger-entries', 'ledger-timeline'):
         import ledger
         action=args[0]
         ap=argparse.ArgumentParser(prog='localdelta.py '+action)
@@ -49,10 +50,17 @@ def main(argv=None):
             ap.add_argument('--end',help='带时区截止时间 ISO 8601')
             ap.add_argument('--limit',type=int,default=100)
             ap.add_argument('--offset',type=int,default=0)
+        if action=='ledger-timeline':
+            ap.add_argument('--start',help='带时区起始时间 ISO 8601')
+            ap.add_argument('--end',help='带时区截止时间 ISO 8601')
+            ap.add_argument('--account',action='append',dest='accounts',help='重复传入多个账户 UUID')
+            ap.add_argument('--limit',type=int,default=200)
+            ap.add_argument('--offset',type=int,default=0)
         o=ap.parse_args(args[1:])
         try:
             if action=='ledger-upgrade':result=ledger.upgrade(o.db)
             elif action=='ledger-accounts':result=ledger.list_accounts(o.db,o.ownership)
+            elif action=='ledger-timeline':result=ledger.transfer_timeline(o.db,o.start,o.end,o.accounts,o.limit,o.offset)
             else:result=ledger.account_movements(o.db,o.account,o.start,o.end,o.limit,o.offset)
             print(json.dumps(result,ensure_ascii=False,indent=2));return 0
         except (pdp.PDPError,OSError,ValueError,sqlite3.Error) as exc:
