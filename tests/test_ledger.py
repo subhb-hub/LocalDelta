@@ -297,6 +297,20 @@ class LedgerTests(unittest.TestCase):
                             "--account", a, "--start", "2026-11-09T10:00:00+09:00")
         self.assertEqual([r["amount"] for r in narrowed["entries"]], ["-2.00"])
 
+    def test_account_time_query_has_composite_index(self):
+        self.upgrade()
+        a, b = self.account_pair()
+        self.apply([event([posting(a, "-5.00"), posting(b, "5.00")])])
+        with contextlib.closing(pdp.connect(self.db)) as c:
+            descriptions = [r[3] for r in c.execute(
+                "EXPLAIN QUERY PLAN SELECT posting_id FROM ld_postings "
+                "WHERE account_id=? AND effective_utc>=? AND effective_utc<=? "
+                "ORDER BY effective_utc,posting_id",
+                (a, "2026-01-01T00:00:00.000000+00:00",
+                    "2026-12-31T23:59:59.000000+00:00"))]
+            self.assertTrue(any("ld_postings_account_time" in x for x in descriptions),
+                            descriptions)
+
     def test_split_event_is_not_silently_reclassified_as_a_matched_transfer(self):
         self.upgrade()
         a, b = self.account_pair()
