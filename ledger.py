@@ -351,3 +351,104 @@ def account_movements(db, account_id, start=None, end=None, limit=100, offset=0)
                 "note": "Cash movements only: opening balance and independent reconciliation are not yet implemented."}
     finally:
         c.close()
+
+
+def transfer_timeline(db, start=None, end=None, account_ids=None, limit=200, offset=0):
+    """Return evidence-backed journal arrows, not bank-statement reconciliation.
+
+    Only simple events with exactly one owned debit and one owned credit become
+    edges. Complex/split/unmatched cases are explicitly returned as unlinked
+    event IDs, never guessed into a transfer.
+    """
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 250:
+        pdp.fail("limit 必须为 1–250")
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        pdp.fail("offset 必须为非负整数")
+    for label, value in (("start", start), ("end", end)):
+        if value is not None:
+            _datetime(value, label)
+    if start and end and _utc(start) > _utc(end):
+        pdp.fail("start 不得晚于 end")
+    if account_ids is not None:
+        if not isinstance(account_ids, list) or len(account_ids) > 250:
+            pdp.fail("account_ids 必须为最多 250 个 UUID 的数组")
+        for item in account_ids:
+            pdp.check_uuid(item, "account_id")
+        if len(set(account_ids)) != len(account_ids):
+            pdp.fail("account_ids 不得重复")
+    c = _read_checked(db)
+    try:
+        all_accounts = {r["account_id"]: dict(r) for r in c.execute(
+            "SELECT account_id,institution,display_name,account_type,ownership FROM ld_accounts")}
+        if account_ids is not None:
+            if any(a not in all_accounts for a in account_ids):
+                pdp.fail("账户筛选包含未知 ID")
+            selected = set(account_ids)
+        else:
+            selected = {a for a, rec in all_accounts.items() if rec["ownership"] == "owned"}
+        lanes = [
+            {"account_id": a, "label": all_accounts[a]["display_name"],
+             "institution": all_accounts[a]["institution"], "scope": all_accounts[a]["ownership"]}
+            for a in sorted(selected)
+        ]
+        conditions = ["kind IN ('transfer','fx')"]
+        params = []
+        if start:
+            conditions.append("occurred_utc>=?")
+            params.append(_utc(start))
+        if end:
+            conditions.append("occurred_utc<=?")
+            params.append(_utc(end))
+        sql = ("SELECT event_id,kind,occurred_at,occurred_utc,booked_at,booked_utc,source_ref "
+               "FROM ld_ledger_events WHERE " + " AND ".join(conditions) +
+               " ORDER BY occurred_utc,event_id LIMIT ? OFFSET ?")
+        events = [dict(row) for row in c.execute(sql, params + [limit, offset])]
+        post_by_event = {e["event_id"]: [] for e in events}
+        if events:
+            placeholders = ",".join("?" for _ in events)
+            for row in c.execute(
+                "SELECT posting_id,event_id,account_id,amount,currency,role,posted_at,posted_utc "
+                "FROM ld_postings WHERE event_id IN (" + placeholders + ") ORDER BY posting_id",
+                [e["event_id"] for e in events]
+            ):
+                post_by_event[row["event_id"]].append(dict(row))
+        edges = []
+        unlinked = []
+        for event in events:
+            entries = post_by_event[event["event_id"]]
+            negatives = [p for p in entries if Decimal(p["amount"]) < 0
+                         and all_accounts[p["account_id"]]["ownership"] == "owned"]
+            positives = [p for p in entries if Decimal(p["amount"]) > 0
+                         and all_accounts[p["account_id"]]["ownership"] == "owned"]
+            if len(negatives) != 1 or len(positives) != 1:
+                unlinked.append({"event_id": event["event_id"],
+                                 "reason": "complex_or_unmatched_requires_review"})
+                continue
+            a, b = negatives[0], positives[0]
+            if a["account_id"] not in selected or b["account_id"] not in selected:
+                continue
+            fees = [{"amount": format(abs(Decimal(p["amount"])), "f"),
+                     "currency": p["currency"]} for p in entries if p["role"] == "fee"]
+            edges.append({
+                "id": event["event_id"], "from_account_id": a["account_id"],
+                "to_account_id": b["account_id"],
+                "sent_at": a["posted_at"] or event["booked_at"] or event["occurred_at"],
+                "received_at": b["posted_at"] or event["booked_at"] or event["occurred_at"],
+                "sent_utc": a["posted_utc"] or event["booked_utc"] or event["occurred_utc"],
+                "received_utc": b["posted_utc"] or event["booked_utc"] or event["occurred_utc"],
+                "sent": {"amount": format(abs(Decimal(a["amount"])), "f"), "currency": a["currency"]},
+                "received": {"amount": format(Decimal(b["amount"]), "f"), "currency": b["currency"]},
+                "fees": fees, "kind": event["kind"], "status": "journal_recorded",
+                "source_ref": event["source_ref"],
+            })
+        return {
+            "schema": "LocalDeltaTimeline/0.1",
+            "account_lanes": lanes, "edges": edges, "unlinked_events": unlinked,
+            "limit": limit, "offset": offset, "complete": False,
+            "warnings": [
+                "Journal arrows are not independently reconciled bank transfers.",
+                "Opening balances and partial statement matching are not yet implemented.",
+            ],
+        }
+    finally:
+        c.close()
