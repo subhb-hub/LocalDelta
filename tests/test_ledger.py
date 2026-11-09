@@ -248,6 +248,50 @@ class LedgerTests(unittest.TestCase):
         self.cli("ledger-entries", "--db", str(self.db), "--account", a, success=False)
         self.cli("status", "--db", str(self.db), success=False)
 
+    def test_timeline_returns_journal_arrows_not_claimed_reconciled(self):
+        self.upgrade()
+        a, b = self.account_pair()
+        self.apply([event([
+            posting(a, "-100.00", posted_at="2026-11-09T10:00:00+08:00"),
+            posting(b, "100.00", posted_at="2026-11-10T12:00:00+09:00"),
+        ])])
+        result = self.cli("ledger-timeline", "--db", str(self.db))
+        self.assertEqual(result["schema"], "LocalDeltaTimeline/0.1")
+        self.assertFalse(result["complete"])
+        self.assertEqual(len(result["edges"]), 1)
+        edge = result["edges"][0]
+        self.assertEqual(edge["status"], "journal_recorded")
+        self.assertEqual(edge["from_account_id"], a)
+        self.assertEqual(edge["to_account_id"], b)
+        self.assertEqual(edge["received_utc"], "2026-11-10T03:00:00.000000+00:00")
+        self.assertEqual(len(self.cli("ledger-timeline", "--db", str(self.db),
+                                      "--account", a)["edges"]), 0)
+
+    def test_cross_timezone_sorting_and_filtering_are_by_instant(self):
+        self.upgrade()
+        a, b = self.account_pair()
+        self.apply([event([posting(a, "-1.00"), posting(b, "1.00")],
+                          occurred_at="2026-11-09T09:00:00+09:00")])
+        self.apply([event([posting(a, "-2.00"), posting(b, "2.00")],
+                          occurred_at="2026-11-09T02:00:00+00:00")])
+        rows = self.cli("ledger-entries", "--db", str(self.db), "--account", a)["entries"]
+        self.assertEqual([r["amount"] for r in rows], ["-1.00", "-2.00"])
+        self.assertEqual(rows[0]["effective_utc"], "2026-11-09T00:00:00.000000+00:00")
+        narrowed = self.cli("ledger-entries", "--db", str(self.db),
+                            "--account", a, "--start", "2026-11-09T10:00:00+09:00")
+        self.assertEqual([r["amount"] for r in narrowed["entries"]], ["-2.00"])
+
+    def test_split_event_is_not_silently_reclassified_as_a_matched_transfer(self):
+        self.upgrade()
+        a, b = self.account_pair()
+        third, c = account("Bank C")
+        self.apply([c])
+        self.apply([event([posting(a, "-10.00"), posting(b, "6.00"),
+                           posting(third, "4.00")])])
+        timeline = self.cli("ledger-timeline", "--db", str(self.db))
+        self.assertEqual(timeline["edges"], [])
+        self.assertEqual(len(timeline["unlinked_events"]), 1)
+
     def test_filters_limits_and_unknown_account(self):
         self.upgrade()
         a, b = self.account_pair()
