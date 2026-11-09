@@ -77,7 +77,9 @@ def create_tables(c):
         kind TEXT NOT NULL CHECK(kind IN
             ('transfer','deposit','withdrawal','fee','fx','trade','income','adjustment','other')),
         occurred_at TEXT NOT NULL,
+        occurred_utc TEXT NOT NULL,
         booked_at TEXT,
+        booked_utc TEXT,
         source_ref TEXT NOT NULL,
         description TEXT,
         created_at TEXT NOT NULL
@@ -89,7 +91,8 @@ def create_tables(c):
         amount TEXT NOT NULL,
         currency TEXT NOT NULL,
         role TEXT NOT NULL,
-        posted_at TEXT
+        posted_at TEXT,
+        posted_utc TEXT
     )""")
     c.execute("""CREATE TABLE ld_ledger_migrations (
         version INTEGER PRIMARY KEY,
@@ -100,7 +103,7 @@ def create_tables(c):
     )""")
     c.execute("CREATE INDEX ld_postings_account_currency ON ld_postings(account_id,currency,event_id)")
     c.execute("CREATE INDEX ld_postings_event ON ld_postings(event_id)")
-    c.execute("CREATE INDEX ld_ledger_events_date ON ld_ledger_events(occurred_at,event_id)")
+    c.execute("CREATE INDEX ld_ledger_events_date ON ld_ledger_events(occurred_utc,event_id)")
 
 
 def upgrade(db):
@@ -166,6 +169,14 @@ def _datetime(value, name):
     except ValueError:
         pdp.fail(name + " 必须携带有效时区")
     return value
+
+
+def _utc(value):
+    if value is None:
+        return None
+    _datetime(value, "timestamp")
+    return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(
+        dt.timezone.utc).isoformat(timespec="microseconds")
 
 
 def validate_op(op):
@@ -249,13 +260,15 @@ def apply_op(c, op, package_id):
         for item in record["postings"]:
             if not c.execute("SELECT 1 FROM ld_accounts WHERE account_id=?", (item["account_id"],)).fetchone():
                 pdp.fail("分录引用不存在的 account_id")
-        c.execute("INSERT INTO ld_ledger_events VALUES (?,?,?,?,?,?,?)",
-                  (ident, record["kind"], record["occurred_at"], record.get("booked_at"),
+        c.execute("INSERT INTO ld_ledger_events VALUES (?,?,?,?,?,?,?,?,?)",
+                  (ident, record["kind"], record["occurred_at"], _utc(record["occurred_at"]),
+                   record.get("booked_at"), _utc(record.get("booked_at")),
                    record["source_ref"], record.get("description"), ts))
         for item in record["postings"]:
-            c.execute("INSERT INTO ld_postings VALUES (?,?,?,?,?,?,?)",
+            c.execute("INSERT INTO ld_postings VALUES (?,?,?,?,?,?,?,?)",
                       (item["posting_id"], ident, item["account_id"],
-                       item["amount"], item["currency"], item["role"], item.get("posted_at")))
+                       item["amount"], item["currency"], item["role"],
+                       item.get("posted_at"), _utc(item.get("posted_at"))))
         summary = record
         audit_table = "ld_ledger_events"
     c.execute("INSERT INTO pdp_source_keys VALUES (?,?,?,?)", (source_key, audit_table, ident, package_id))
@@ -270,7 +283,7 @@ def apply_op(c, op, package_id):
 
 def _read_checked(db):
     """Dedicated read-only connection; reject unaudited changes before reporting."""
-    uri = "file:" + __import__("pathlib").Path(db).expanduser().resolve().as_posix() + "?mode=ro"
+    uri = __import__("pathlib").Path(db).expanduser().resolve().as_uri() + "?mode=ro"
     c = sqlite3.connect(uri, uri=True)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys=ON")
@@ -310,7 +323,7 @@ def account_movements(db, account_id, start=None, end=None, limit=100, offset=0)
     for name, value in (("start", start), ("end", end)):
         if value is not None:
             _datetime(value, name)
-    if start and end and start > end:
+    if start and end and _utc(start) > _utc(end):
         pdp.fail("start 时间不得晚于 end")
     c = _read_checked(db)
     try:
@@ -319,16 +332,17 @@ def account_movements(db, account_id, start=None, end=None, limit=100, offset=0)
         cond = ["p.account_id=?"]
         args = [account_id]
         if start:
-            cond.append("COALESCE(p.posted_at,e.booked_at,e.occurred_at)>=?")
-            args.append(start)
+            cond.append("COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc)>=?")
+            args.append(_utc(start))
         if end:
-            cond.append("COALESCE(p.posted_at,e.booked_at,e.occurred_at)<=?")
-            args.append(end)
+            cond.append("COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc)<=?")
+            args.append(_utc(end))
         sql = """SELECT p.posting_id,p.event_id,p.account_id,p.amount,p.currency,p.role,
                         COALESCE(p.posted_at,e.booked_at,e.occurred_at) AS effective_at,
+                        COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc) AS effective_utc,
                         e.kind,e.description,e.source_ref
                  FROM ld_postings p JOIN ld_ledger_events e ON p.event_id=e.event_id
-                 WHERE """ + " AND ".join(cond) + " ORDER BY effective_at, p.posting_id LIMIT ? OFFSET ?"
+                 WHERE """ + " AND ".join(cond) + " ORDER BY effective_utc, p.posting_id LIMIT ? OFFSET ?"
         args.extend([limit, offset])
         rows = [dict(r) for r in c.execute(sql, args)]
         return {"account_id": account_id, "entries": rows,
