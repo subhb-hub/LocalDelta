@@ -335,7 +335,8 @@ def parse_bundle(path):
             if len(candidates) == 1:
                 return candidates[0]
             # Keep independent matching evidence without counting it as another cash row.
-            return add(doc, key, aid, 'transfer_evidence', r, day, ccy, unsigned=value,
+            evidence_key = 'endpoint:' + aid + ':' + str(r.get('id') or key)
+            return add(doc, evidence_key, aid, 'transfer_evidence', r, day, ccy, unsigned=value,
                        description='Prepared transfer evidence; cash endpoint unresolved', locator=loc)
         za_receipts = {r['id']: r for r in matched['za']}
         hsbc_receipts = {r['id']: r for r in matched['hsbc']}
@@ -572,8 +573,18 @@ def review(db, target_id, decision, evidence, signed_amount=None):
         else:
             if signed_amount is not None or not c.execute('SELECT 1 FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone():
                 pdp.fail('Link review requires an existing transfer and no signed amount')
+            link = c.execute('SELECT * FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone()
+            if decision != 'rejected':
+                for side in ('debit', 'credit'):
+                    oid = link[side + '_id']
+                    row = c.execute('SELECT * FROM ld_observations WHERE observation_id=?', (oid,)).fetchone()
+                    used = sum((Decimal(x[0]) for x in c.execute(
+                        "SELECT debit_amount FROM ld_effective_links WHERE debit_id=? AND link_id!=? AND certainty!='rejected' "
+                        "UNION ALL SELECT credit_amount FROM ld_effective_links WHERE credit_id=? AND link_id!=? AND certainty!='rejected'",
+                        (oid, target_id, oid, target_id))), Decimal(0))
+                    if used + Decimal(link[side + '_amount']) > abs(Decimal(row['signed_amount'] or row['statement_amount'])):
+                        pdp.fail('Review would reactivate an overallocated transfer')
             if decision == 'confirmed':
-                link = c.execute('SELECT * FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone()
                 for side, sign in (('debit', -1), ('credit', 1)):
                     signed = c.execute('SELECT signed_amount FROM ld_effective_observations WHERE observation_id=?',
                                        (link[side + '_id'],)).fetchone()[0]

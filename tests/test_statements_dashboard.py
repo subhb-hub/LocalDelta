@@ -142,6 +142,35 @@ class StatementTests(unittest.TestCase):
         self.assertEqual(self.healthy()['revision'], old)
         self.assertEqual(analytics.query(self.db, 'timeline')['total'], 1)
 
+    def test_shared_independent_receipt_has_one_evidence_endpoint(self):
+        with zipfile.ZipFile(self.archive) as z:
+            content = {n: z.read(n) for n in z.namelist() if n != 'MANIFEST.json'}
+        match = json.loads(content['matches.json'])
+        match['hsbc'] = [dict(match['za'][0], id='HSBC-SYN-1', direction='in')]
+        match['cmb'][0]['receipt_id'] = 'HSBC-SYN-1'
+        content['matches.json'] = json.dumps(match).encode()
+        with zipfile.ZipFile(self.archive, 'w') as z:
+            for name, value in content.items():
+                z.writestr(name, value)
+        plan = statements.parse_bundle(self.archive)
+        endpoints = [r for r in plan['observations'] if r['kind'] == 'transfer_evidence']
+        self.assertEqual(len(endpoints), 1)
+        self.assertEqual(plan['links'][0]['credit_id'], endpoints[0]['observation_id'])
+
+    def test_rejected_link_cannot_be_reactivated_after_reallocation(self):
+        self.import_pack()
+        old_link = analytics.query(self.db, 'timeline')['edges'][0]['link_id']
+        statements.review(self.db, old_link, 'rejected', 'Synthetic replacement match')
+        plan = statements.parse_bundle(self.archive)
+        plan['content_hash'] = 'a' * 64
+        plan['batch_id'] = statements.ident('synthetic-new-match')
+        plan['links'][0].update(link_id=statements.ident('synthetic-new-link'), batch_id=plan['batch_id'])
+        statements.import_plan(self.db, plan)
+        revision = self.healthy()['revision']
+        with self.assertRaises(pdp.PDPError):
+            statements.review(self.db, old_link, 'confirmed', 'Synthetic unsafe reactivation')
+        self.assertEqual(self.healthy()['revision'], revision)
+
     def test_out_of_band_mutation_rejected_by_api(self):
         self.import_pack()
         with closing(pdp.connect(self.db)) as c:
