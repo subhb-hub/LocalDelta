@@ -21,4 +21,4 @@ classifiers = [
 localdelta = "localdelta:main"
 
 [tool.setuptools]
-py-modules = ["pdp", "privacy_bridge", "localdelta"]
+py-modules = ["pdp", "privacy_bridge", "localdelta", "multicurrency", "ledger", "workflow", "desktop_gui", "terminal_ui"]
