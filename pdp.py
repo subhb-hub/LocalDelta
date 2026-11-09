@@ -215,6 +215,8 @@ def schema_fingerprint(c):
     # Include approved additive multi-currency schema, without changing old v1 fingerprints.
     from multicurrency import extension_ddl
     ddls.extend(extension_ddl(c))
+    from ledger import extension_ddl as ledger_ddl
+    ddls.extend(ledger_ddl(c))
     return hashlib.sha256(canonical(ddls)).hexdigest()
 
 
@@ -232,6 +234,14 @@ def data_fingerprint(c):
             "ld_currency_amounts":"entity_table,entity_id,role",
             "ld_fx_rates":"rate_id",
             "ld_mc_migrations":"version",
+        })
+    from ledger import enabled as ledger_enabled
+    if ledger_enabled(c):
+        order.update({
+            "ld_accounts": "account_id",
+            "ld_ledger_events": "event_id",
+            "ld_postings": "posting_id",
+            "ld_ledger_migrations": "version",
         })
     h = hashlib.sha256()
     for t, col in order.items():
@@ -363,8 +373,10 @@ def validate_pkg(pkg, evidence):
     extra = set(pkg)-allowed
     if extra: fail("更新包未知字段: "+repr(sorted(extra)))
     from multicurrency import PROTOCOL as PDP_V2, validate_op as validate_v2_op
-    v2=pkg.get("protocol")==PDP_V2
-    if pkg.get("protocol") not in (PROTOCOL,PDP_V2): fail("协议版本不兼容")
+    from ledger import PROTOCOL as PDP_V3, TABLES as LEDGER_TABLES, validate_op as validate_ledger_op
+    v3=pkg.get("protocol")==PDP_V3
+    v2=pkg.get("protocol") in (PDP_V2,PDP_V3)
+    if pkg.get("protocol") not in (PROTOCOL,PDP_V2,PDP_V3): fail("协议版本不兼容")
     for k in ("package_id","database_id"):
         check_uuid(pkg.get(k),k)
     if not isinstance(pkg.get("base_revision"),int) or isinstance(pkg.get("base_revision"),bool) or pkg["base_revision"]<0:
@@ -394,7 +406,8 @@ def validate_pkg(pkg, evidence):
         check_uuid(o.get("op_id"),"op_id")
         if o["op_id"] in seen:fail("同一更新包有重复 op_id")
         seen.add(o["op_id"])
-        if o.get("table") not in (TABLES+("fx_rates",) if v2 else TABLES):
+        allowed_tables = TABLES + (("fx_rates",) if v2 else ()) + (LEDGER_TABLES if v3 else ())
+        if o.get("table") not in allowed_tables:
             fail("不允许操作未知表: "+str(o.get("table")))
         if o.get("action") not in ("create","correct","void"):fail("不支持的操作")
         source=o.get("source")
@@ -432,7 +445,8 @@ def validate_pkg(pkg, evidence):
             check_str(o.get("reason"),"reason",True,512)
             if o["action"]=="void" and o["table"]=="assets":
                 fail("不支持直接作废资产档案（避免关联孤儿）")
-        if v2: validate_v2_op(o)
+        if v3 and o["table"] in LEDGER_TABLES: validate_ledger_op(o)
+        elif v2: validate_v2_op(o)
     ev=pkg.get("evidence",[])
     if not isinstance(ev,list):fail("evidence 必须为数组")
     ev_names=set()
@@ -579,13 +593,17 @@ def record_exact(c,table,pk,changes):
 def execute_op(c,o,pkg_id,protocol=PROTOCOL):
     from multicurrency import (PROTOCOL as PDP_V2, apply_fx, prepare_create,
                                after_core_op, enabled)
+    from ledger import PROTOCOL as PDP_V3, TABLES as LEDGER_TABLES, apply_op as apply_ledger_op
     table=o["table"];action=o["action"]
+    if table in LEDGER_TABLES:
+        if protocol != PDP_V3: fail("账本操作仅允许 PDP/3.0")
+        return apply_ledger_op(c,o,pkg_id)
     if table=='fx_rates':
-        if protocol != PDP_V2: fail('汇率记录只能使用 PDP/2.0')
+        if protocol not in (PDP_V2,PDP_V3): fail('汇率记录只能使用 PDP/2.0 或 PDP/3.0')
         return apply_fx(c,o,pkg_id)
     # Make CNY compatibility columns while keeping all original-currency amounts.
     original_op=o
-    if protocol==PDP_V2 and action=='create':o=prepare_create(o)
+    if protocol in (PDP_V2,PDP_V3) and action=='create':o=prepare_create(o)
     col=PK[table];ts=now()
     if action=="create":
         input_rec=o["record"]
@@ -605,14 +623,14 @@ def execute_op(c,o,pkg_id,protocol=PROTOCOL):
         if table=="transactions":
             check_str(rec.get("kind"),"kind",True,30)
             if rec.get("total_paid_cny") is None and rec.get("cash_inflow_cny") is None and not (
-                    protocol==PDP_V2 and original_op.get('money') and
+                    protocol in (PDP_V2,PDP_V3) and original_op.get('money') and
                     any(k in original_op['money'] for k in ('cash_paid','cash_inflow'))):
                 fail("交易至少应包含支付金额或现金流入金额")
             if not rec.get("order_datetime"):
                 fail("交易必须包含 order_datetime")
         if table=="snapshots":
             if rec.get("market_value_cny") is None and rec.get("quantity") is None and not (
-                    protocol==PDP_V2 and 'market_value' in original_op.get('money',{})):
+                    protocol in (PDP_V2,PDP_V3) and 'market_value' in original_op.get('money',{})):
                 fail("估值快照至少应包含市值或数量")
         validate_business_rules(table,rec)
         duplicate=find_dupe(c,table,rec)
@@ -655,7 +673,9 @@ def execute_op(c,o,pkg_id,protocol=PROTOCOL):
 
 def process(c,pkg,commit=False):
     from multicurrency import PROTOCOL as PDP_V2, require_enabled
-    if pkg['protocol']==PDP_V2:require_enabled(c)
+    from ledger import PROTOCOL as PDP_V3, require_enabled as require_ledger
+    if pkg['protocol'] in (PDP_V2,PDP_V3):require_enabled(c)
+    if pkg['protocol']==PDP_V3:require_ledger(c)
     m=get_meta(c)
     if schema_fingerprint(c)!=m["schema_digest"]:
         fail("目标数据库基础表结构变化，禁止无迁移导入")
@@ -758,7 +778,8 @@ def command_status(args):
         if data_fingerprint(c) != m["data_digest"]:
             fail("数据库在 PDP 之外被修改，数据指纹不匹配")
         from multicurrency import enabled
-        res={"status":"healthy","database_id":m["db_id"],"revision":m["revision"],"data_fingerprint":m["data_digest"],"multicurrency_enabled":enabled(c),"counts":{t:c.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in TABLES},"active_counts":{"transactions":c.execute("SELECT COUNT(*) FROM pdp_active_transactions").fetchone()[0],"snapshots":c.execute("SELECT COUNT(*) FROM pdp_active_snapshots").fetchone()[0]},"recent_packages":[dict(r) for r in c.execute("SELECT * FROM pdp_packages ORDER BY applied_revision DESC LIMIT 10")]}
+        from ledger import enabled as ledger_enabled
+        res={"status":"healthy","ledger_enabled":ledger_enabled(c),"database_id":m["db_id"],"revision":m["revision"],"data_fingerprint":m["data_digest"],"multicurrency_enabled":enabled(c),"counts":{t:c.execute("SELECT COUNT(*) FROM "+t).fetchone()[0] for t in TABLES},"active_counts":{"transactions":c.execute("SELECT COUNT(*) FROM pdp_active_transactions").fetchone()[0],"snapshots":c.execute("SELECT COUNT(*) FROM pdp_active_snapshots").fetchone()[0]},"recent_packages":[dict(r) for r in c.execute("SELECT * FROM pdp_packages ORDER BY applied_revision DESC LIMIT 10")]}
         print(json.dumps(res,ensure_ascii=False,indent=2))
     finally:c.close()
 
