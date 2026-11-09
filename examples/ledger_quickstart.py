@@ -5,6 +5,7 @@ Uses a disposable temporary directory and never touches personal databases.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 import sys
@@ -59,7 +60,7 @@ def main():
                 ],
             }),
         ]
-        with pdp.connect(db) as conn:
+        with contextlib.closing(pdp.connect(db)) as conn:
             meta = pdp.get_meta(conn)
         pkg = {
             "protocol": ledger.PROTOCOL,
