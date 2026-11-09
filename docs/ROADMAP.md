@@ -26,15 +26,22 @@
 - Cloud Draft/2 money values bound locally from pseudonymous assets, shared offline preview/approval and audit.
 - **Not included:** fully balanced multi-currency cash postings, tax-lot cost accounting, automatic FX fetching, valuation P&L attribution.
 
-## v0.4+ (proposed: multi-account ledger + composable dashboard; NOT implemented)
+## v0.4-alpha (partially implemented: ledger foundation + conservative timeline queries)
 
-Design RFC: [Multi-account ledger, transfer timeline and dashboard](MULTI_ACCOUNT_DASHBOARD_RFC.md).
+Implementation guide: [Ledger v0.4-alpha](LEDGER_V04.md); complete target RFC:
+[Multi-account ledger, transfer timeline and dashboard](MULTI_ACCOUNT_DASHBOARD_RFC.md).
 
-- Normalize institution/account identity and ownership scope; retain evidence-backed bank/broker statement observations and separate economic events / exact-currency postings.
-- Add reviewed transfer matching, explicit executed FX and fees, split payments, unmatched-transaction reconciliation, and no-double-count portfolio totals.
-- Publish local, read-only, typed query APIs for account cash movements, reconciliations, performance coverage and account-to-account flow timelines.
-- Add a user-configurable block dashboard (timeline is an optional reusable block, not the sole UI).
-- Preserve PDP audit, backups, migration compatibility, privacy and explicit confirmation; avoid default network listeners.
+**Implemented in the experimental PR branch:**
+- Backup-first additive PDP/3 migration; normalized institution/account and ownership scope; balanced, exact-decimal per-currency event/posting journal with independent UTC timestamps.
+- Existing PDP review/confirmation, backup, source-key idempotency, rollback, data/schema fingerprint and audit extended to ledger events.
+- Read-only local Python/CLI JSON interfaces for accounts, account movements and *simple journal-linked* transfer timeline arrows; complex/split cases remain unlinked.
+- Synthetic runnable quickstart, regression tests and cross-platform CI coverage.
+
+**Not yet implemented:**
+- Raw bank/broker statement observations, independent bilateral reconciliation, split transfer matching and reversal/correction of immutable ledger events.
+- Verified opening balances, full cash/holdings reconciliation, per-account investment return calculation and deduplicated portfolio analytics.
+- User-composable dashboard block registry, chart renderers, saved layouts and optional authenticated HTTP APIs.
+- Do not treat journal timeline arrows as verified bank matching or net flows as complete balances.
 
 ## Later priorities (not yet shipped)
 
