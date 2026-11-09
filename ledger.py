@@ -21,7 +21,7 @@ ACCOUNT_TABLE = "ledger_accounts"
 EVENT_TABLE = "ledger_events"
 TABLES = (ACCOUNT_TABLE, EVENT_TABLE)
 SCHEMA_TABLES = ("ld_accounts", "ld_ledger_events", "ld_postings", "ld_ledger_migrations")
-INDEX_NAMES = ("ld_postings_account_currency", "ld_postings_event", "ld_ledger_events_date")
+INDEX_NAMES = ("ld_postings_account_currency", "ld_postings_account_time", "ld_postings_event", "ld_ledger_events_date")
 ACCOUNT_TYPES = {"bank", "broker", "payment", "wallet", "cash", "clearing", "expense", "equity", "other"}
 OWNERSHIP = {"owned", "third_party", "system"}
 EVENT_KINDS = {"transfer", "deposit", "withdrawal", "fee", "fx", "trade", "income", "adjustment", "other"}
@@ -92,7 +92,8 @@ def create_tables(c):
         currency TEXT NOT NULL,
         role TEXT NOT NULL,
         posted_at TEXT,
-        posted_utc TEXT
+        posted_utc TEXT,
+        effective_utc TEXT NOT NULL
     )""")
     c.execute("""CREATE TABLE ld_ledger_migrations (
         version INTEGER PRIMARY KEY,
@@ -102,6 +103,7 @@ def create_tables(c):
         previous_data TEXT NOT NULL
     )""")
     c.execute("CREATE INDEX ld_postings_account_currency ON ld_postings(account_id,currency,event_id)")
+    c.execute("CREATE INDEX ld_postings_account_time ON ld_postings(account_id,effective_utc,posting_id)")
     c.execute("CREATE INDEX ld_postings_event ON ld_postings(event_id)")
     c.execute("CREATE INDEX ld_ledger_events_date ON ld_ledger_events(occurred_utc,event_id)")
 
@@ -266,10 +268,11 @@ def apply_op(c, op, package_id):
                    record.get("booked_at"), _utc(record.get("booked_at")),
                    record["source_ref"], record.get("description"), ts))
         for item in record["postings"]:
-            c.execute("INSERT INTO ld_postings VALUES (?,?,?,?,?,?,?,?)",
+            c.execute("INSERT INTO ld_postings VALUES (?,?,?,?,?,?,?,?,?)",
                       (item["posting_id"], ident, item["account_id"],
                        item["amount"], item["currency"], item["role"],
-                       item.get("posted_at"), _utc(item.get("posted_at"))))
+                       item.get("posted_at"), _utc(item.get("posted_at")),
+                       _utc(item.get("posted_at") or record.get("booked_at") or record["occurred_at"])))
         summary = record
         audit_table = "ld_ledger_events"
     c.execute("INSERT INTO pdp_source_keys VALUES (?,?,?,?)", (source_key, audit_table, ident, package_id))
@@ -333,14 +336,14 @@ def account_movements(db, account_id, start=None, end=None, limit=100, offset=0)
         cond = ["p.account_id=?"]
         args = [account_id]
         if start:
-            cond.append("COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc)>=?")
+            cond.append("p.effective_utc>=?")
             args.append(_utc(start))
         if end:
-            cond.append("COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc)<=?")
+            cond.append("p.effective_utc<=?")
             args.append(_utc(end))
         sql = """SELECT p.posting_id,p.event_id,p.account_id,p.amount,p.currency,p.role,
                         COALESCE(p.posted_at,e.booked_at,e.occurred_at) AS effective_at,
-                        COALESCE(p.posted_utc,e.booked_utc,e.occurred_utc) AS effective_utc,
+                        p.effective_utc AS effective_utc,
                         e.kind,e.description,e.source_ref
                  FROM ld_postings p JOIN ld_ledger_events e ON p.event_id=e.event_id
                  WHERE """ + " AND ".join(cond) + " ORDER BY effective_utc, p.posting_id LIMIT ? OFFSET ?"
