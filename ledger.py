@@ -194,14 +194,15 @@ def validate_op(op):
         pdp.check_uuid(record["account_id"], "account_id")
         pdp.check_str(record["institution"], "institution", True, 255)
         pdp.check_str(record["display_name"], "display_name", True, 255)
-        if record["account_type"] not in ACCOUNT_TYPES or record["ownership"] not in OWNERSHIP:
+        if (not isinstance(record["account_type"], str) or record["account_type"] not in ACCOUNT_TYPES
+                or not isinstance(record["ownership"], str) or record["ownership"] not in OWNERSHIP):
             pdp.fail("无效的账户类型或所有权范围")
         return record
 
     if not EVENT_REQUIRED.issubset(record) or set(record) - (EVENT_REQUIRED | EVENT_OPTIONAL):
         pdp.fail("ledger_events 字段不符合白名单")
     pdp.check_uuid(record["event_id"], "event_id")
-    if record["kind"] not in EVENT_KINDS:
+    if not isinstance(record["kind"], str) or record["kind"] not in EVENT_KINDS:
         pdp.fail("无效经济事件类型")
     _datetime(record["occurred_at"], "occurred_at")
     if record.get("booked_at") is not None:
@@ -227,7 +228,7 @@ def validate_op(op):
         amount = mc.parse_decimal(item["amount"], "posting.amount", scale=mc.MINOR_UNITS[code])
         if amount == 0:
             pdp.fail("分录金额不能为零")
-        if item["role"] not in POSTING_ROLES:
+        if not isinstance(item["role"], str) or item["role"] not in POSTING_ROLES:
             pdp.fail("无效的分录角色")
         if item.get("posted_at") is not None:
             _datetime(item["posted_at"], "posted_at")
@@ -299,7 +300,7 @@ def _read_checked(db):
 
 
 def list_accounts(db, ownership=None):
-    if ownership is not None and ownership not in OWNERSHIP:
+    if ownership is not None and (not isinstance(ownership, str) or ownership not in OWNERSHIP):
         pdp.fail("无效 ownership 过滤器")
     c = _read_checked(db)
     try:
