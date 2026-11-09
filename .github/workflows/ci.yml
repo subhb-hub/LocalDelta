@@ -24,3 +24,5 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Run synthetic ledger quickstart
         run: python examples/ledger_quickstart.py
+      - name: Run synthetic statement and dashboard quickstart
+        run: python examples/statements_quickstart.py

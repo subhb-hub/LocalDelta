@@ -1,6 +1,6 @@
 # LocalDelta v0.4-alpha: 多账户复式现金账本（已实现基础能力）
 
-> **实施边界：** 这份文档描述当前 PR 中已落地的“Phase A + 最小只读查询”，不是原 RFC 中所有功能的完成声明。**尚未实现：** CSV/银行流水自动导入、独立原始账单观测、两端流水自动/人工配对、拆分转账匹配、期初余额核对、证券税务成本批次、可组合 GUI Dashboard 或 HTTP API。不要将账本流水净变动解释为完整账户余额或投资收益率。
+> **实施边界：** 这份文档描述 PDP/3.0 复式记账层。独立的流水观察、转账分配、核验记录、可组合看板和只读 HTTP API 已在 [流水与看板说明](STATEMENTS_DASHBOARD.md) 中实现。流水导入不会自动生成复式分录。期初余额核对、证券税务成本批次和账户投资收益仍未实现；不要将净变动解释为完整余额或收益率。
 
 ## 目前的能力
 
@@ -119,7 +119,7 @@ PDP/3.0 延续 PDP/1.0 的 package_id、database_id、base_revision、base_data_
 1. 不要将真实账户 ID、流水证据、交易描述或数据库文件提交到公共 GitHub。
 2. 如果仅获得单边扣款证据，可通过系统 suspense/clearing 账户记录已知资金变动，但该虚拟分录**不等于另一家银行实际到账**。
 3. 本 PR 暂不支持纠错或作废账本事件。若发现已记入错误事实，应先暂停继续导入，保留原备份，等待后续带冲正与复核的 PDP 扩展，不要直接执行 SQL 覆盖。
-4. 应优先补充 ld_statement_items、ld_source_links、ld_transfer_matches、分拆资金关联和已知余额快照，再提供通用 Analytics API 与自由组合 Dashboard。这些是 RFC 中的下一阶段，而非当前已可用功能。
+4. 原始观察、来源关联、转账分配、核验决策和看板已由 statements.py、analytics.py、dashboard.py 提供；已知期初余额、完整余额核对和复式事件冲正仍待后续实现。
 5. 复式记账事件之间的关系不能靠金额和时间相似度自动确认为银行流水匹配结果。当前 timeline 只展示人工提交的事件级关系。
 
 完整目标架构见 [MULTI_ACCOUNT_DASHBOARD_RFC.md](MULTI_ACCOUNT_DASHBOARD_RFC.md)，多币种前置能力见 [MULTICURRENCY.md](MULTICURRENCY.md)。

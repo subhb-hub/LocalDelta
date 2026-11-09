@@ -1,3 +1,11 @@
+## v0.4.0a2 — 2026-11-09 — Private statement observations and account dashboard
+
+- Added audited local intake for structured bank review archives and generic cash CSVs, preserving source hashes, raw fields, unknown directions and investment candidates.
+- Added partial two-sided transfer allocations and append-only direction/link reviews with rejection and conflict handling; statement intake creates no journal postings.
+- Added indexed per-account/per-currency read APIs, raw evidence drill-down, an authenticated loopback HTTP service, and a private offline dashboard with date/account filters and configurable blocks.
+- Added a desktop account-dashboard tab and expanded public-tree guards for archives, HTML exports and unreviewed JSON files. Public tests use synthetic data exclusively.
+- Preserved legacy database fingerprints when extensions are disabled and retained the Windows SQLite handle cleanup fix in the ledger quickstart.
+
 ## v0.3.0 — 2026-11-09 — Typed original-currency amounts and manual FX valuation
 
 - Added opt-in, backup-first multicurrency migration (`money-upgrade`), plus GUI new-database enablement and multi-currency tab.

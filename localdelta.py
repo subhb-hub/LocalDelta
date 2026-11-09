@@ -27,6 +27,10 @@ def main(argv=None):
         print('  python localdelta.py ledger-accounts --db 路径 [--ownership owned]')
         print('  python localdelta.py ledger-entries --db 路径 --account 账户UUID')
         print('  python localdelta.py ledger-timeline --db 路径 [--start ISO时间] [--end ISO时间]')
+        print('  python localdelta.py statement-upgrade --db 路径   启用原始流水与配对证据')
+        print('  python localdelta.py statement-import --db 路径 --bundle 私密资料包.zip [--apply]')
+        print('  python localdelta.py dashboard --db 路径 [--out 私密看板.html]')
+        print('  python localdelta.py query --db 路径 --view timeline [--account UUID]')
         print('  python localdelta.py money-report --db 路径 --currency CNY --as-of YYYY-MM-DD')
         print('  python localdelta.py fx-draft --db 路径 --base USD --quote CNY --rate 7.20 --date YYYY-MM-DD --source 人工来源')
         print('  python localdelta.py cloud-context|alias-map|bind-draft ...')
@@ -37,6 +41,76 @@ def main(argv=None):
             return menu()
         # Non-interactive invocation should not block waiting for input.
         return pdp.main(['--help'])
+    if args[0] in ('statement-upgrade', 'statement-import', 'statement-import-csv',
+                   'statement-inspect', 'statement-review', 'dashboard', 'query'):
+        import statements
+        import analytics
+        import dashboard
+        action = args[0]
+        ap = argparse.ArgumentParser(prog='localdelta.py ' + action)
+        ap.add_argument('--db', required=True)
+        if action in ('statement-inspect', 'statement-review'):
+            ap.add_argument('--id', required=True)
+            if action == 'statement-review':
+                ap.add_argument('--decision', required=True,
+                                choices=['direction', 'confirmed', 'likely', 'conflicting', 'rejected'])
+                ap.add_argument('--signed-amount')
+                ap.add_argument('--evidence', required=True)
+                ap.add_argument('--apply', action='store_true')
+        elif action == 'statement-import':
+            ap.add_argument('--bundle', required=True)
+            ap.add_argument('--apply', action='store_true', help='确认写入原始观察，不生成记账分录')
+            ap.add_argument('--expected-hash', help='预演返回的 content_hash')
+        elif action == 'statement-import-csv':
+            ap.add_argument('--csv', required=True)
+            ap.add_argument('--account-key', required=True)
+            ap.add_argument('--institution', required=True)
+            ap.add_argument('--label', required=True)
+            ap.add_argument('--apply', action='store_true')
+            ap.add_argument('--expected-hash')
+        elif action == 'dashboard':
+            ap.add_argument('--out', help='导出可离线筛选的私密 HTML；不指定则启动本机只读 API')
+            ap.add_argument('--port', type=int, default=0)
+            ap.add_argument('--no-browser', action='store_true')
+        elif action == 'query':
+            ap.add_argument('--view', required=True, choices=sorted(analytics.VIEWS))
+            ap.add_argument('--account', action='append', dest='account_ids')
+            ap.add_argument('--start', help='YYYY-MM-DD')
+            ap.add_argument('--end', help='YYYY-MM-DD')
+            ap.add_argument('--limit', type=int, default=100)
+            ap.add_argument('--offset', type=int, default=0)
+        o = ap.parse_args(args[1:])
+        try:
+            if action == 'statement-inspect':
+                result = analytics.record(o.db, o.id)
+            elif action == 'statement-review':
+                result = (statements.review(o.db, o.id, o.decision, o.evidence, o.signed_amount) if o.apply
+                          else {'status': 'preview', 'record': analytics.record(o.db, o.id),
+                                'decision': o.decision, 'signed_amount': o.signed_amount,
+                                'evidence': o.evidence, 'note': 'Add --apply to append this review'})
+            elif action == 'statement-upgrade':
+                result = statements.upgrade(o.db)
+            elif action == 'statement-import':
+                result = (statements.import_bundle(o.db, o.bundle, o.expected_hash) if o.apply
+                          else statements.preview_bundle(o.bundle))
+            elif action == 'statement-import-csv':
+                plan = statements.parse_cash_csv(o.csv, o.account_key, o.institution, o.label)
+                result = (statements.import_plan(o.db, plan, o.expected_hash) if o.apply
+                          else statements.summarize_plan(plan))
+            elif action == 'dashboard':
+                if o.out:
+                    result = dashboard.export(o.db, o.out)
+                else:
+                    dashboard.serve(o.db, o.port, not o.no_browser)
+                    return 0
+            else:
+                result = analytics.query(o.db, o.view, account_ids=o.account_ids,
+                                         start=o.start, end=o.end, limit=o.limit, offset=o.offset)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        except (pdp.PDPError, OSError, ValueError, TypeError, KeyError, sqlite3.Error, zipfile.BadZipFile) as exc:
+            print('LocalDelta 操作被拒绝：' + str(exc), file=sys.stderr)
+            return 2
     if args[0] in ('ledger-upgrade', 'ledger-accounts', 'ledger-entries', 'ledger-timeline'):
         import ledger
         action=args[0]

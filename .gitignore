@@ -17,6 +17,10 @@
 *.bdf
 *.pkl
 *.pdp.zip
+*.zip
+*.html
+*.htm
+upload/
 *.pdp.json
 !examples/example_update.pdp.json
 *context*.json

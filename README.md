@@ -1,5 +1,13 @@
 # LocalDelta
 
+**Development branch: private statement intake and account dashboard.**
+Import local bank observations with source hashes and append-only evidence reviews;
+explore account/date transfer lanes and composable blocks; query an authenticated
+loopback API or export a private offline dashboard. See
+[the intake, dashboard and API guide](docs/STATEMENTS_DASHBOARD.md).
+Unknown cash directions and incomplete coverage remain explicit; cash movement
+is not reported as investment return. User data is never a public fixture.
+
 **Private AI-assisted incremental updates for local data.**  
 **本地优先、AI 无关、可审计的增量更新系统。首个可运行适配器：投资组合。**
 
@@ -15,9 +23,11 @@ LocalDelta lets you keep your database on your own machine while asking a **loca
 The v0.4-alpha foundation provides additive account/event/posting tables, strictly
 balanced per-currency journal events, guarded PDP/3 package application,
 timezone-normalized UTC queries and read-only CLI JSON for accounts, movements
-and simple event-linked transfer timelines. **Bank-statement matching, opening
-balance reconciliation, account performance and the configurable dashboard are
-not implemented yet.** See [the implementation guide](docs/LEDGER_V04.md) and
+and simple event-linked transfer timelines. The companion statement layer now
+adds source observations, transfer allocations, append-only reviews and a local
+configurable dashboard. **Verified opening balances and account investment
+performance remain future work.** See [the statement/dashboard guide](docs/STATEMENTS_DASHBOARD.md),
+[the ledger guide](docs/LEDGER_V04.md) and
 [architecture RFC](docs/MULTI_ACCOUNT_DASHBOARD_RFC.md). Example:
 
 ```bash

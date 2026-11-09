@@ -217,6 +217,8 @@ def schema_fingerprint(c):
     ddls.extend(extension_ddl(c))
     from ledger import extension_ddl as ledger_ddl
     ddls.extend(ledger_ddl(c))
+    from statements import extension_ddl as statement_ddl
+    ddls.extend(statement_ddl(c))
     return hashlib.sha256(canonical(ddls)).hexdigest()
 
 
@@ -243,6 +245,9 @@ def data_fingerprint(c):
             "ld_postings": "posting_id",
             "ld_ledger_migrations": "version",
         })
+    from statements import enabled as statements_enabled, TABLE_ORDER
+    if statements_enabled(c):
+        order.update(TABLE_ORDER)
     h = hashlib.sha256()
     for t, col in order.items():
         h.update(t.encode("ascii"))

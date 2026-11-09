@@ -292,6 +292,7 @@ def _read_checked(db):
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys=ON")
     try:
+        c.execute("BEGIN")
         require_enabled(c)
         meta = pdp.get_meta(c)
         if pdp.schema_fingerprint(c) != meta["schema_digest"] or pdp.data_fingerprint(c) != meta["data_digest"]:

@@ -2,7 +2,7 @@
 
 **你的数据始终由本机掌控；AI 负责建议修改，LocalDelta 负责校验、备份、审计和原子写入。**
 
-> **v0.4-alpha 多账户账本实验功能（当前 PR 分支）：** 新增 PDP/3.0 复式分录、规范化账户、UTC 时间索引和只读账户/时间线 JSON 查询。功能目前还**不包含**原始银行流水配对、期初余额、账户收益率或可组合 GUI 看板。先运行 `money-upgrade` 再运行 `ledger-upgrade`，详情见 [v0.4 账本使用说明](docs/LEDGER_V04.md) 与 [完整目标 RFC](docs/MULTI_ACCOUNT_DASHBOARD_RFC.md)。
+> **v0.4-alpha 多账户与看板实验功能（当前 PR 分支）：** 已提供原始流水导入、来源保全、双端转账分配、追加式核验记录，以及账户时间线、可添加/移除/排序的本地看板块和只读查询接口。现金净变动不代表投资收益；未知收支方向、缺失估值和不完整账单明确保留。详见 [流水、看板与 API 使用说明](docs/STATEMENTS_DASHBOARD.md)、[账本说明](docs/LEDGER_V04.md) 和 [设计 RFC](docs/MULTI_ACCOUNT_DASHBOARD_RFC.md)。真实数据及导出网页必须留在私密目录，不能作为公开测试样例。
 
 **v0.3.0 多币种扩展已实现。** 原生保存 CNY、USD、HKD 等多币种金额；明确区分证券报价币种、实际付款币种、费用币种和报表币种。借鉴 Beancount / Portfolio Performance 的设计，保留历史原币金额，绝不隐式用当前汇率改写交易。尚不包含复式现金账本或税务成本批次。具体见 [多币种设计与使用手册](docs/MULTICURRENCY.md)。
 
