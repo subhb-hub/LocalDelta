@@ -210,6 +210,18 @@ class QuerySession:
             'FROM ld_observations GROUP BY account_id,kind ORDER BY account_id,kind')]
         return {'rows': rows, 'complete': False, 'note': 'Observed ranges do not prove continuous statement coverage.'}
 
+    def portfolio(self, **filters):
+        import portfolio
+        return portfolio.accounts(self.c, **filters)
+
+    def asset_catalog(self, **filters):
+        import portfolio
+        return portfolio.assets(self.c, **filters)
+
+    def capital(self, **filters):
+        import portfolio
+        return portfolio.capital(self.c, **filters)
+
     def query(self, view, **filters):
         if not isinstance(view, str) or view not in VIEWS:
             pdp.fail('Unknown analytics view')
@@ -223,12 +235,16 @@ class QuerySession:
 
 
 VIEWS = {'accounts', 'movements', 'timeline', 'summary', 'positions', 'review', 'coverage', 'fx'}
+VIEWS.update({'portfolio', 'asset_catalog', 'capital'})
 for _key, _title, _view in (
     ('account_timeline', '账户转账时间线', 'timeline'), ('cash_movements', '已知现金变动', 'summary'),
     ('review_queue', '待核验记录', 'review'), ('position_history', '持仓估值记录', 'positions'),
     ('cash_table', '逐笔流水', 'movements'), ('source_coverage', '资料覆盖范围', 'coverage'),
     ('fx_history', '实际换汇记录', 'fx')):
     register_block(_key, _title, _view)
+register_block('portfolio_accounts', '组合账户结构', 'portfolio')
+register_block('portfolio_assets', '资产档案与账户归属', 'asset_catalog')
+register_block('confirmed_capital', '已确认入金依据', 'capital')
 
 
 def query(db, view, **filters):

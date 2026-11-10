@@ -31,6 +31,9 @@ def main(argv=None):
         print('  python localdelta.py statement-import --db 路径 --bundle 私密资料包.zip [--apply]')
         print('  python localdelta.py dashboard --db 路径 [--out 私密看板.html]')
         print('  python localdelta.py query --db 路径 --view timeline [--account UUID]')
+        print('  python localdelta.py portfolio-upgrade --db 路径   启用独立于估值的组合结构')
+        print('  python localdelta.py portfolio-import --db 路径 --manifest 私密确认.json [--apply]')
+        print('  python localdelta.py query --db 路径 --view portfolio|asset_catalog|capital')
         print('  python localdelta.py money-report --db 路径 --currency CNY --as-of YYYY-MM-DD')
         print('  python localdelta.py fx-draft --db 路径 --base USD --quote CNY --rate 7.20 --date YYYY-MM-DD --source 人工来源')
         print('  python localdelta.py cloud-context|alias-map|bind-draft ...')
@@ -41,6 +44,25 @@ def main(argv=None):
             return menu()
         # Non-interactive invocation should not block waiting for input.
         return pdp.main(['--help'])
+    if args[0] in ('portfolio-upgrade', 'portfolio-import'):
+        import portfolio
+        ap = argparse.ArgumentParser(prog='localdelta.py ' + args[0])
+        ap.add_argument('--db', required=True)
+        if args[0] == 'portfolio-import':
+            ap.add_argument('--manifest', required=True)
+            ap.add_argument('--apply', action='store_true')
+        o = ap.parse_args(args[1:])
+        try:
+            if args[0] == 'portfolio-upgrade':
+                result = portfolio.upgrade(o.db)
+            else:
+                manifest = pdp.json_parse(Path(o.manifest).read_bytes())
+                result = portfolio.apply_manifest(o.db, manifest) if o.apply else portfolio.validate_manifest(manifest)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+        except (pdp.PDPError, OSError, ValueError, TypeError, KeyError, sqlite3.Error) as exc:
+            print('LocalDelta 操作被拒绝：' + str(exc), file=sys.stderr)
+            return 2
     if args[0] in ('statement-upgrade', 'statement-import', 'statement-import-csv',
                    'statement-inspect', 'statement-review', 'dashboard', 'query'):
         import statements

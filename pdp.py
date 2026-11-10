@@ -219,6 +219,8 @@ def schema_fingerprint(c):
     ddls.extend(ledger_ddl(c))
     from statements import extension_ddl as statement_ddl
     ddls.extend(statement_ddl(c))
+    from portfolio import extension_ddl as portfolio_ddl
+    ddls.extend(portfolio_ddl(c))
     return hashlib.sha256(canonical(ddls)).hexdigest()
 
 
@@ -248,6 +250,9 @@ def data_fingerprint(c):
     from statements import enabled as statements_enabled, TABLE_ORDER
     if statements_enabled(c):
         order.update(TABLE_ORDER)
+    from portfolio import enabled as portfolio_enabled, TABLE_ORDER as PORTFOLIO_TABLES
+    if portfolio_enabled(c):
+        order.update(PORTFOLIO_TABLES)
     h = hashlib.sha256()
     for t, col in order.items():
         h.update(t.encode("ascii"))

@@ -131,7 +131,7 @@ def _check(c):
     return meta
 
 
-def _write(db, description, mutate):
+def _write(db, description, mutate, audit_table="ld_statement_batches", audit_action="statement_import", source=None):
     """Backup, lock, recheck, mutate, audit, fingerprint, atomic commit."""
     with closing(pdp.connect(db)) as c:
         before = _check(c)
@@ -151,9 +151,9 @@ def _write(db, description, mutate):
             c.execute("""INSERT INTO pdp_operations
                 (op_id,package_id,action,table_name,entity_id,old_json,new_json,reason,source_json,applied_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?)""", (
-                str(uuid.uuid4()), package_id, "statement_import", "ld_statement_batches",
+                str(uuid.uuid4()), package_id, audit_action, audit_table,
                 result.get('batch_id', 'migration'), None, json.dumps(result, ensure_ascii=False),
-                description, json.dumps({'kind': 'local_statement', 'certainty': 'unverified'}), pdp.now()))
+                description, json.dumps(source or {'kind': 'local_statement', 'certainty': 'unverified'}), pdp.now()))
             c.execute("UPDATE pdp_meta SET revision=?,schema_digest=?,data_digest=? WHERE singleton=1", (
                 meta['revision'] + 1, pdp.schema_fingerprint(c), pdp.data_fingerprint(c)))
             pdp.check_db(c)
@@ -546,53 +546,56 @@ def sqlite_connect_ro(db):
     return c
 
 
-def review(db, target_id, decision, evidence, signed_amount=None):
+def append_review(c, target_id, decision, evidence, signed_amount=None):
     """Append a human evidence decision. Raw observations and matches never change."""
     pdp.check_uuid(target_id, 'target_id')
     pdp.check_str(evidence, 'review evidence', True, 4096)
     if decision not in {'direction', 'confirmed', 'likely', 'conflicting', 'rejected'}:
         pdp.fail('Unknown review decision')
-    def mutate(c):
-        if not enabled(c):
-            pdp.fail('Statement extension not enabled')
-        obs_id, link_id, value = None, None, None
-        if decision == 'direction':
-            row = c.execute('SELECT * FROM ld_observations WHERE observation_id=?', (target_id,)).fetchone()
-            if not row or row['kind'] != 'cash':
-                pdp.fail('Direction reviews require a cash observation')
-            value = amount(signed_amount, row['currency'])
-            original = row['signed_amount'] if row['signed_amount'] is not None else row['statement_amount']
-            if abs(Decimal(value)) != abs(Decimal(original)):
-                pdp.fail('Direction review may change sign only; amount corrections require new evidence')
-            for link in c.execute("SELECT debit_id,credit_id FROM ld_effective_links WHERE certainty='confirmed' "
-                                  'AND (debit_id=? OR credit_id=?)', (target_id, target_id)):
-                if (link['debit_id'] == target_id and Decimal(value) >= 0
-                        or link['credit_id'] == target_id and Decimal(value) <= 0):
-                    pdp.fail('Direction conflicts with a confirmed transfer; review that link first')
-            obs_id = target_id
-        else:
-            if signed_amount is not None or not c.execute('SELECT 1 FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone():
-                pdp.fail('Link review requires an existing transfer and no signed amount')
-            link = c.execute('SELECT * FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone()
-            if decision != 'rejected':
-                for side in ('debit', 'credit'):
-                    oid = link[side + '_id']
-                    row = c.execute('SELECT * FROM ld_observations WHERE observation_id=?', (oid,)).fetchone()
-                    used = sum((Decimal(x[0]) for x in c.execute(
-                        "SELECT debit_amount FROM ld_effective_links WHERE debit_id=? AND link_id!=? AND certainty!='rejected' "
-                        "UNION ALL SELECT credit_amount FROM ld_effective_links WHERE credit_id=? AND link_id!=? AND certainty!='rejected'",
-                        (oid, target_id, oid, target_id))), Decimal(0))
-                    if used + Decimal(link[side + '_amount']) > abs(Decimal(row['signed_amount'] or row['statement_amount'])):
-                        pdp.fail('Review would reactivate an overallocated transfer')
-            if decision == 'confirmed':
-                for side, sign in (('debit', -1), ('credit', 1)):
-                    signed = c.execute('SELECT signed_amount FROM ld_effective_observations WHERE observation_id=?',
-                                       (link[side + '_id'],)).fetchone()[0]
-                    if signed is not None and Decimal(signed) * sign <= 0:
-                        pdp.fail('Cannot confirm a transfer with conflicting cash directions')
-            link_id = target_id
-        did = str(uuid.uuid4())
-        c.execute('INSERT INTO ld_review_decisions VALUES (?,?,?,?,?,?,?,?)', (
-            did, pdp.get_meta(c)['revision'] + 1, obs_id, link_id, decision, value, evidence, pdp.now()))
-        return {'status': 'reviewed', 'decision_id': did, 'target_id': target_id, 'decision': decision}
-    return _write(db, 'Append a statement evidence review', mutate)
+    if not enabled(c):
+        pdp.fail('Statement extension not enabled')
+    obs_id, link_id, value = None, None, None
+    if decision == 'direction':
+        row = c.execute('SELECT * FROM ld_observations WHERE observation_id=?', (target_id,)).fetchone()
+        if not row or row['kind'] != 'cash':
+            pdp.fail('Direction reviews require a cash observation')
+        value = amount(signed_amount, row['currency'])
+        original = row['signed_amount'] if row['signed_amount'] is not None else row['statement_amount']
+        if abs(Decimal(value)) != abs(Decimal(original)):
+            pdp.fail('Direction review may change sign only; amount corrections require new evidence')
+        for link in c.execute("SELECT debit_id,credit_id FROM ld_effective_links WHERE certainty='confirmed' "
+                              'AND (debit_id=? OR credit_id=?)', (target_id, target_id)):
+            if (link['debit_id'] == target_id and Decimal(value) >= 0
+                    or link['credit_id'] == target_id and Decimal(value) <= 0):
+                pdp.fail('Direction conflicts with a confirmed transfer; review that link first')
+        obs_id = target_id
+    else:
+        if signed_amount is not None or not c.execute('SELECT 1 FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone():
+            pdp.fail('Link review requires an existing transfer and no signed amount')
+        link = c.execute('SELECT * FROM ld_transfer_links WHERE link_id=?', (target_id,)).fetchone()
+        if decision != 'rejected':
+            for side in ('debit', 'credit'):
+                oid = link[side + '_id']
+                row = c.execute('SELECT * FROM ld_observations WHERE observation_id=?', (oid,)).fetchone()
+                used = sum((Decimal(x[0]) for x in c.execute(
+                    "SELECT debit_amount FROM ld_effective_links WHERE debit_id=? AND link_id!=? AND certainty!='rejected' "
+                    "UNION ALL SELECT credit_amount FROM ld_effective_links WHERE credit_id=? AND link_id!=? AND certainty!='rejected'",
+                    (oid, target_id, oid, target_id))), Decimal(0))
+                if used + Decimal(link[side + '_amount']) > abs(Decimal(row['signed_amount'] or row['statement_amount'])):
+                    pdp.fail('Review would reactivate an overallocated transfer')
+        if decision == 'confirmed':
+            for side, sign in (('debit', -1), ('credit', 1)):
+                signed = c.execute('SELECT signed_amount FROM ld_effective_observations WHERE observation_id=?',
+                                   (link[side + '_id'],)).fetchone()[0]
+                if signed is not None and Decimal(signed) * sign <= 0:
+                    pdp.fail('Cannot confirm a transfer with conflicting cash directions')
+        link_id = target_id
+    did = str(uuid.uuid4())
+    c.execute('INSERT INTO ld_review_decisions VALUES (?,?,?,?,?,?,?,?)', (
+        did, pdp.get_meta(c)['revision'] + 1, obs_id, link_id, decision, value, evidence, pdp.now()))
+    return {'status': 'reviewed', 'decision_id': did, 'target_id': target_id, 'decision': decision}
+
+
+def review(db, target_id, decision, evidence, signed_amount=None):
+    return _write(db, 'Append a statement evidence review',
+                  lambda c: append_review(c, target_id, decision, evidence, signed_amount))

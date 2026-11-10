@@ -1,3 +1,10 @@
+## v0.4.0a3 — 2026-11-10 — Portfolio structure independent of valuation
+
+- Added audited account/asset membership, source-preserving user confirmation imports and cash classifications.
+- Kept original assets, transactions, snapshots, observations and transfer claims intact; deferred NAV, allocation weights and current holding inference.
+- Added structural portfolio, asset catalog and confirmed funding queries with a matching dashboard mode.
+- Added atomic multi-record confirmation support, original-currency funding basis and synthetic regression coverage.
+
 ## v0.4.0a2 — 2026-11-09 — Private statement observations and account dashboard
 
 - Added audited local intake for structured bank review archives and generic cash CSVs, preserving source hashes, raw fields, unknown directions and investment candidates.

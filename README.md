@@ -1,5 +1,9 @@
 # LocalDelta
 
+Portfolio structure can now be registered independently of valuation snapshots:
+account ownership, asset membership and confirmed cash classifications remain
+usable without NAV or valuation dates. See [portfolio structure](docs/PORTFOLIO_STRUCTURE.md).
+
 **Development branch: private statement intake and account dashboard.**
 Import local bank observations with source hashes and append-only evidence reviews;
 explore account/date transfer lanes and composable blocks; query an authenticated
