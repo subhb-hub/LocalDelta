@@ -6,7 +6,10 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 ALLOWED = {'.py','.md','.txt','.json','.sql','.toml','.yml','.yaml','.ps1','.sh','.cmd'}
 ALLOWED_NAMES = {'.gitignore','.gitattributes','LICENSE'}
-PRIVATE_PARTS = {'.localdelta','pdp_backups','pdp_receipts','secrets','private','backups'}
+PRIVATE_PARTS = {'.localdelta','pdp_backups','pdp_receipts','secrets','private','backups','upload'}
+ALLOWED_JSON = {'cloud_draft.schema.json', 'cloud_draft_v2.schema.json',
+                'pdp_package.schema.json', 'pdp_package_v2.schema.json',
+                'examples/example_update.pdp.json'}
 
 
 def main():
@@ -28,6 +31,8 @@ def main():
             blocked.append(f'{rel}: live patches must stay private')
         elif ('context' in p.name.lower() or 'alias' in p.name.lower()) and p.suffix=='.json':
             blocked.append(f'{rel}: context exports must stay private')
+        elif p.suffix.lower()=='.json' and rel not in ALLOWED_JSON:
+            blocked.append(f'{rel}: unreviewed JSON data must stay private')
     if blocked:
         print('PUBLIC SOURCE AUDIT FAILED:\n'+'\n'.join(blocked))
         return 1

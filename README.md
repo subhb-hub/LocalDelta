@@ -1,5 +1,17 @@
 # LocalDelta
 
+Portfolio structure can now be registered independently of valuation snapshots:
+account ownership, asset membership and confirmed cash classifications remain
+usable without NAV or valuation dates. See [portfolio structure](docs/PORTFOLIO_STRUCTURE.md).
+
+**Development branch: private statement intake and account dashboard.**
+Import local bank observations with source hashes and append-only evidence reviews;
+explore account/date transfer lanes and composable blocks; query an authenticated
+loopback API or export a private offline dashboard. See
+[the intake, dashboard and API guide](docs/STATEMENTS_DASHBOARD.md).
+Unknown cash directions and incomplete coverage remain explicit; cash movement
+is not reported as investment return. User data is never a public fixture.
+
 **Private AI-assisted incremental updates for local data.**  
 **本地优先、AI 无关、可审计的增量更新系统。首个可运行适配器：投资组合。**
 
@@ -9,6 +21,22 @@ LocalDelta lets you keep your database on your own machine while asking a **loca
 
 > **v0.3.0: Multi-currency sidecar shipped.** PDP/2.0 stores typed decimal values in their original currencies (CNY, USD, HKD, etc.) and records dated, sourced FX observations. It does *not* provide full double-entry trading accounts, actual FX cash-leg reconciliation, or tax-lot accounting. See [multi-currency architecture](docs/MULTICURRENCY.md).
 
+
+## Experimental PDP/3.0 multi-account cash ledger (PR branch only)
+
+The v0.4-alpha foundation provides additive account/event/posting tables, strictly
+balanced per-currency journal events, guarded PDP/3 package application,
+timezone-normalized UTC queries and read-only CLI JSON for accounts, movements
+and simple event-linked transfer timelines. The companion statement layer now
+adds source observations, transfer allocations, append-only reviews and a local
+configurable dashboard. **Verified opening balances and account investment
+performance remain future work.** See [the statement/dashboard guide](docs/STATEMENTS_DASHBOARD.md),
+[the ledger guide](docs/LEDGER_V04.md) and
+[architecture RFC](docs/MULTI_ACCOUNT_DASHBOARD_RFC.md). Example:
+
+```bash
+python examples/ledger_quickstart.py
+```
 
 ## Multi-currency quick start
 

@@ -93,15 +93,18 @@ class LocalDeltaApp(ttk.Frame):
         ai_tab = ttk.Frame(notebook, padding=10)
         history_tab = ttk.Frame(notebook, padding=10)
         money_tab = ttk.Frame(notebook, padding=10)
+        dashboard_tab = ttk.Frame(notebook, padding=10)
         help_tab = ttk.Frame(notebook, padding=10)
         notebook.add(update_tab, text="  增量更新  ")
         notebook.add(ai_tab, text="  AI 协作  ")
         notebook.add(money_tab, text="  多币种  ")
+        notebook.add(dashboard_tab, text="  账户看板  ")
         notebook.add(history_tab, text="  更新历史  ")
         notebook.add(help_tab, text="  使用说明  ")
         self._build_update(update_tab)
         self._build_ai(ai_tab)
         self._build_money(money_tab)
+        self._build_dashboard(dashboard_tab)
         self._build_history(history_tab)
         self._build_help(help_tab)
         self.notebook = notebook
@@ -175,6 +178,60 @@ class LocalDeltaApp(ttk.Frame):
         ttk.Label(parent,
                   text="本地 AI 可直接读取你授权的本地文件并生成原生 PDP 包。LocalDelta 当前不内置模型或 OCR；请由你的 Ollama / 其他工具负责提取数据。",
                   wraplength=760, justify="left").pack(fill="x", pady=8)
+
+    def _build_dashboard(self, parent: ttk.Frame) -> None:
+        ttk.Label(parent, text="多账户流水与可组合看板", font=("Arial", 13, "bold")).pack(anchor="w", pady=(0, 12))
+        ttk.Label(parent, text="按账户和日期查看现金记录、转账时间线、持仓观察与待核验项目。\n"
+                  "可以在浏览器中添加、移除和调整图表块。离线看板包含私密财务数据。",
+                  wraplength=760, justify="left").pack(anchor="w", pady=(0, 18))
+        ttk.Button(parent, text="导入私密流水资料包…", command=self._import_statements).pack(anchor="w", pady=6)
+        ttk.Button(parent, text="导出并打开账户看板…", command=self._export_dashboard).pack(anchor="w", pady=6)
+        ttk.Label(parent, text="导入会先展示记录数和资料限制，确认后自动备份并写入。\n"
+                  "未知收支方向和证券交易候选不会自动生成记账分录。",
+                  foreground="#596a75", wraplength=760, justify="left").pack(anchor="w", pady=16)
+
+    def _import_statements(self) -> None:
+        db = self._require_db()
+        if not db:
+            return
+        source = filedialog.askopenfilename(title="选择私密流水资料包", filetypes=[("ZIP 资料包", "*.zip")])
+        if not source:
+            return
+        try:
+            import statements
+            import ledger
+            import multicurrency
+            preview = statements.preview_bundle(source)
+            detail = json.dumps(preview['observations'], ensure_ascii=False, indent=2)
+            if not messagebox.askyesno("导入预演", f"记录数：\n{detail}\n转账配对：{preview['transfer_links']}\n\n"
+                                      "配对作为待确认资料保存，不生成记账分录。\n确认备份、启用流水扩展并导入？", parent=self.root):
+                return
+            multicurrency.upgrade(db)
+            ledger.upgrade(db)
+            statements.upgrade(db)
+            result = statements.import_bundle(db, source, preview['content_hash'])
+            self._invalidate_review()
+            self._check_db()
+            messagebox.showinfo("导入结果", result['status'], parent=self.root)
+        except Exception as exc:
+            messagebox.showerror("导入失败", str(exc), parent=self.root)
+
+    def _export_dashboard(self) -> None:
+        db = self._require_db()
+        if not db:
+            return
+        target = filedialog.asksaveasfilename(title="保存私密账户看板", defaultextension=".html",
+                                             filetypes=[("HTML 看板", "*.html")])
+        if not target:
+            return
+        try:
+            import dashboard
+            import webbrowser
+            dashboard.export(db, target)
+            webbrowser.open(Path(target).resolve().as_uri())
+            self.state.set("已导出私密账户看板")
+        except Exception as exc:
+            messagebox.showerror("导出失败", str(exc), parent=self.root)
 
     def _build_money(self, parent: ttk.Frame) -> None:
         ttk.Label(parent, text="多币种资产与汇率", font=("Arial", 13, "bold")).pack(anchor="w", pady=(0, 8))
